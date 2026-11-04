@@ -66,12 +66,12 @@ test("routes a meal-plan file from Backup to Planner and keeps it after reload",
   await expect(page).toHaveURL(/\/plan$/);
   const input = page.locator(".plan-import-trigger input[type=file]");
   const dialog = page.getByRole("dialog", {
-    name: "Review your personal plan",
+    name: "Use your weekly plan",
   });
-  await expect(dialog).toContainText("28 meals across seven days");
+  await expect(dialog).toContainText("7 days · 28 meals");
   await expect(dialog.locator(".plan-import-day")).toHaveCount(7);
-  await expect(dialog.locator(".plan-import-meal")).toHaveCount(28);
-  await dialog.getByRole("button", { name: "Import & activate" }).click();
+  await expect(dialog.locator(".plan-import-meal:visible")).toHaveCount(4);
+  await dialog.getByRole("button", { name: "Use this plan" }).click();
   await expect(page.locator(".plan-guide")).toContainText(
     "My Personal Weight-Gain Plan",
   );
@@ -88,8 +88,8 @@ test("routes a meal-plan file from Backup to Planner and keeps it after reload",
     buffer: Buffer.from(JSON.stringify(plan)),
   });
   await page
-    .getByRole("dialog", { name: "Review your personal plan" })
-    .getByRole("button", { name: "Import & activate" })
+    .getByRole("dialog", { name: "Use your weekly plan" })
+    .getByRole("button", { name: "Use this plan" })
     .click();
   await expect(page.locator(".plan-guide")).toContainText(
     "My Personal Weight-Gain Plan",
@@ -115,6 +115,6 @@ test("onboarding can carry a selected weekly plan into its preview", async ({
   await page.getByRole("button", { name: /Continue/ }).click();
   await page.getByRole("button", { name: /Start my journey/ }).click();
   await expect(
-    page.getByRole("dialog", { name: "Review your personal plan" }),
+    page.getByRole("dialog", { name: "Use your weekly plan" }),
   ).toBeVisible();
 });

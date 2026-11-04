@@ -4,6 +4,7 @@ import {
   categories,
   catalogFromRecipes,
   db,
+  defaultProfile,
   today,
   uid,
   weekFromTemplate,
@@ -315,10 +316,12 @@ export async function importPersonalMealPlan(
         ...template,
         createdAt: previousTemplate?.createdAt || template.createdAt,
       });
+      let profile = await database.profiles.get("me");
+      if (!profile) {
+        profile = { ...defaultProfile };
+        await database.profiles.add(profile);
+      }
       if (!activate) return;
-      const profile = await database.profiles.get("me");
-      if (!profile)
-        throw new Error("Open Nourish once before activating a plan.");
       await database.profiles.update("me", {
         activeTemplateId: template.id,
         mealTimes: { ...profile.mealTimes, ...mealTimes },
@@ -408,4 +411,6 @@ export async function importPersonalMealPlan(
       }
     },
   );
+  if (database === db && typeof localStorage !== "undefined")
+    localStorage.removeItem("nourish-erased");
 }

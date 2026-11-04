@@ -2836,28 +2836,83 @@ body {
 .plan-import-dialog {
   width: min(100%, 760px);
 }
-.plan-import-dialog > .muted {
-  font-size: 0.82rem;
+.plan-import-intro {
+  padding: 16px;
+  border-radius: 16px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+}
+.plan-import-intro h3 {
+  margin: 5px 0;
+  font-size: 1.18rem;
+}
+.plan-import-intro p,
+.plan-import-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
   line-height: 1.5;
 }
+.plan-import-help {
+  margin: 14px 0;
+}
+.plan-import-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.plan-import-times span {
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+  text-transform: capitalize;
+}
+.plan-import-times b {
+  color: var(--text);
+}
 .plan-import-days {
-  max-height: 49vh;
+  max-height: 34vh;
   overflow: auto;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin: 18px 0;
+  grid-template-columns: 1fr;
+  align-content: start;
+  gap: 8px;
+  margin: 14px 0;
   padding-right: 4px;
 }
 .plan-import-day {
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--surface-soft);
-  padding: 13px;
+  padding: 0 13px;
 }
-.plan-import-day h3 {
-  font-size: 1rem;
-  margin: 0 0 8px;
+.plan-import-day summary {
+  min-height: 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.plan-import-day summary::-webkit-details-marker {
+  display: none;
+}
+.plan-import-day summary:focus-visible {
+  outline: 2px solid #528b62;
+  outline-offset: 2px;
+}
+.plan-import-day summary span {
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+}
+.plan-import-day[open] summary svg {
+  transform: rotate(90deg);
 }
 .plan-import-meal {
   display: grid;
@@ -2879,19 +2934,28 @@ body {
   color: var(--muted);
   line-height: 1.4;
 }
+.plan-import-actions {
+  position: sticky;
+  bottom: -23px;
+  z-index: 1;
+  background: var(--surface);
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-top: 1px solid var(--border);
+}
 @media (max-width: 620px) {
   .plan-import-days {
-    grid-template-columns: 1fr;
-    max-height: 50vh;
+    max-height: 36vh;
   }
   .plan-import-dialog {
     padding: 18px;
   }
   .plan-import-dialog .modal-actions {
-    flex-wrap: wrap;
+    flex-direction: column-reverse;
+    bottom: -18px;
   }
   .plan-import-dialog .modal-actions .btn {
-    flex: 1;
+    width: 100%;
   }
 }
 /* Warm daily momentum and clear import paths */

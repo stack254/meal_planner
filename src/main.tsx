@@ -1596,12 +1596,21 @@ function Planner({ data }: { data: Data }) {
       return;
     }
     try {
-      setImportPreview(parsePersonalMealPlan(JSON.parse(await file.text())));
+      const raw: unknown = JSON.parse(await file.text());
+      if (!isPersonalMealPlanFile(raw)) {
+        setImportError(
+          "This is not a weekly meal plan. For a full Nourish backup, go to More → Data & backup.",
+        );
+        return;
+      }
+      setImportPreview(parsePersonalMealPlan(raw));
     } catch (error) {
       setImportError(
-        error instanceof Error
-          ? error.message
-          : "Could not read this meal plan.",
+        error instanceof SyntaxError
+          ? "This file could not be read as JSON. Choose a weekly plan .json file."
+          : error instanceof Error
+            ? error.message
+            : "Could not read this meal plan.",
       );
     }
   };
@@ -1613,8 +1622,8 @@ function Planner({ data }: { data: Data }) {
       await importPersonalMealPlan(importPreview, activate);
       setImportNotice(
         activate
-          ? "Personal plan active from this week and set to repeat. Your completed meals and history were kept."
-          : "Personal plan saved. Choose it from your plans when you are ready.",
+          ? "Your personal plan is ready for this week and will repeat. Your meal history is safe."
+          : "Plan saved. Choose it from your plans when you are ready.",
       );
       setImportPreview(null);
       if (activate) {
@@ -1688,7 +1697,7 @@ function Planner({ data }: { data: Data }) {
             Meal times & profile
           </Button>
           <label className="btn secondary plan-import-trigger">
-            <Upload size={17} /> Import Meal Plan
+            <Upload size={17} /> Import a weekly plan
             <input
               type="file"
               accept=".json,application/json"
@@ -1759,20 +1768,26 @@ function Planner({ data }: { data: Data }) {
       </Card>
       {importPreview && (
         <Modal
-          title="Review your personal plan"
+          title="Use your weekly plan"
           className="plan-import-dialog"
           onClose={() => setImportPreview(null)}
         >
-          <p className="muted">
-            Save as <b>My Personal Weight-Gain Plan</b>. The file has{" "}
-            {importPreview.template.items.length} meals across seven days.
-            Prices are left blank until you enter them.
+          <div className="plan-import-intro">
+            <span className="eyebrow">READY TO REVIEW</span>
+            <h3>My Personal Weight-Gain Plan</h3>
+            <p>7 days · 28 meals · repeats every week</p>
+          </div>
+          <p className="plan-import-help">
+            Check your meals below, then tap <b>Use this plan</b>. It starts
+            this week and keeps your meal history and other plans.
           </p>
-          <p className="muted">
-            Activating sets your breakfast, lunch, snack and supper times from
-            the file. Your weight history, profile goals and other plans stay in
-            place. Reimporting this file updates the saved template.
-          </p>
+          <div className="plan-import-times" aria-label="Meal times from your file">
+            {(["breakfast", "lunch", "snack", "supper"] as const).map((slot) => (
+              <span key={slot}>
+                <b>{slot}</b> {importPreview.source.meal_times[slot]}
+              </span>
+            ))}
+          </div>
           <div className="plan-import-days">
             {[
               "Monday",
@@ -1783,8 +1798,15 @@ function Planner({ data }: { data: Data }) {
               "Saturday",
               "Sunday",
             ].map((day) => (
-              <section key={day} className="plan-import-day">
-                <h3>{day}</h3>
+              <details
+                key={day}
+                className="plan-import-day"
+                open={day === format(parseISO(today()), "EEEE")}
+              >
+                <summary>
+                  <strong>{day}</strong>
+                  <span>4 meals <ChevronRight size={16} /></span>
+                </summary>
                 {importPreview.source.meal_entries
                   .filter((entry) => entry.day === day)
                   .map((entry) => (
@@ -1808,7 +1830,7 @@ function Planner({ data }: { data: Data }) {
                       )}
                     </div>
                   ))}
-              </section>
+              </details>
             ))}
           </div>
           {importError && (
@@ -1816,19 +1838,19 @@ function Planner({ data }: { data: Data }) {
               {importError}
             </p>
           )}
-          <div className="modal-actions">
+          <div className="modal-actions plan-import-actions">
             <Button
               variant="secondary"
               disabled={importBusy}
               onClick={() => void saveImportedPlan(false)}
             >
-              Save plan
+              Save for later
             </Button>
             <Button
               disabled={importBusy}
               onClick={() => void saveImportedPlan(true)}
             >
-              {importBusy ? "Importing…" : "Import & activate"}
+              {importBusy ? "Saving…" : "Use this plan"}
             </Button>
           </div>
         </Modal>

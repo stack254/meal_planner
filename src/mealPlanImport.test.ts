@@ -69,6 +69,24 @@ describe("personal weekly plan import", () => {
     plan.meal_entries[1].slot = "breakfast";
     expect(() => parsePersonalMealPlan(plan)).toThrow(/Duplicate|Missing/);
   });
+  it("can save and activate a plan when there is no profile yet", async () => {
+    const database = new NourishDB(`import-empty-${crypto.randomUUID()}`);
+    const preview = parsePersonalMealPlan(fixture());
+    await importPersonalMealPlan(preview, false, database, "2026-11-04");
+    expect((await database.profiles.get("me"))?.id).toBe("me");
+    expect(await database.meals.count()).toBe(0);
+    await importPersonalMealPlan(preview, true, database, "2026-11-04");
+    const profile = await database.profiles.get("me");
+    expect(profile?.activeTemplateId).toBe(preview.template.id);
+    expect(profile?.mealTimes.breakfast).toBe("07:35");
+    expect(await database.meals.count()).toBe(56);
+    database.close();
+    await database.open();
+    expect((await database.profiles.get("me"))?.activeTemplateId).toBe(
+      preview.template.id,
+    );
+    await database.delete();
+  });
   it("activates, repeats, preserves history and customizations, and survives reopening", async () => {
     const database = new NourishDB(`import-test-${crypto.randomUUID()}`);
     const original: PlanTemplate = {
