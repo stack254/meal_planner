@@ -105,6 +105,7 @@ import { parseBackup } from "./backup";
 import {
   parsePersonalMealPlan,
   importPersonalMealPlan,
+  isPersonalMealPlanFile,
   type PersonalPlanPreview,
 } from "./mealPlanImport";
 import { nextMeal, slotOrder } from "./schedule";
@@ -147,24 +148,61 @@ function useData() {
       .then(() => {
         if (!alive) return;
         subscription = liveQuery(async () => {
-          const profile = (await db.profiles.get("me")) || defaultProfile;
-          const appearance = await db.preferences.get("me");
+          const [
+            profile,
+            appearance,
+            recipes,
+            meals,
+            prices,
+            pantry,
+            purchases,
+            weights,
+            habits,
+            lists,
+            reminders,
+            templates,
+            mealRecords,
+            ingredients,
+            budgets,
+            planWeeks,
+          ] = await Promise.all([
+            db.profiles.get("me"),
+            db.preferences.get("me"),
+            db.recipes.toArray(),
+            db.meals.toArray(),
+            db.prices.toArray(),
+            db.pantry.toArray(),
+            db.purchases.toArray(),
+            db.weights.toArray(),
+            db.habits.toArray(),
+            db.lists.toArray(),
+            db.reminders.toArray(),
+            db.templates.toArray(),
+            db.mealRecords.toArray(),
+            db.ingredients.toArray(),
+            db.budgets.toArray(),
+            db.planWeeks.toArray(),
+          ]);
+          const savedProfile = profile || defaultProfile;
           return {
-            profile: { ...profile, theme: appearance?.theme || profile.theme },
-            recipes: await db.recipes.toArray(),
-            meals: await db.meals.toArray(),
-            prices: await db.prices.toArray(),
-            pantry: await db.pantry.toArray(),
-            purchases: await db.purchases.toArray(),
-            weights: await db.weights.toArray(),
-            habits: await db.habits.toArray(),
-            lists: await db.lists.toArray(),
-            reminders: await db.reminders.toArray(),
-            templates: await db.templates.toArray(),
-            mealRecords: await db.mealRecords.toArray(),
-            ingredients: await db.ingredients.toArray(),
-            budgets: await db.budgets.toArray(),
-            planWeeks: await db.planWeeks.toArray(),
+            profile: {
+              ...savedProfile,
+              theme: appearance?.theme || savedProfile.theme,
+            },
+            recipes,
+            meals,
+            prices,
+            pantry,
+            purchases,
+            weights,
+            habits,
+            lists,
+            reminders,
+            templates,
+            mealRecords,
+            ingredients,
+            budgets,
+            planWeeks,
           };
         }).subscribe({
           next: (x) => {
@@ -257,9 +295,23 @@ function App() {
     );
   if (!data)
     return (
-      <main className="center">
-        <div className="spinner" />
-        <p>Preparing your space…</p>
+      <main className="app-loading" role="status" aria-live="polite">
+        <div className="app-loading-brand">
+          <span>
+            <Leaf size={28} />
+          </span>
+          <strong>Nourish</strong>
+        </div>
+        <div className="app-loading-art" aria-hidden="true">
+          <span>🍃</span>
+          <span>🥑</span>
+          <span>🥣</span>
+        </div>
+        <h1>Your day starts gently.</h1>
+        <p>Opening your saved meals and plans…</p>
+        <div className="app-loading-track" aria-hidden="true">
+          <span />
+        </div>
       </main>
     );
 
@@ -356,10 +408,7 @@ function Shell({
             <Route path="/insights" element={<Insights data={data} />} />
             <Route path="/history" element={<MealHistory data={data} />} />
             <Route path="/profile" element={<ProfilePage data={data} />} />
-            <Route
-              path="/personalize"
-              element={<Onboarding profile={data.profile} />}
-            />
+            <Route path="/personalize" element={<Onboarding data={data} />} />
             <Route path="/backup" element={<Backup data={data} />} />
             <Route path="/settings" element={<SettingsPage data={data} />} />
           </Routes>
@@ -444,11 +493,13 @@ function ReminderBanner({ data }: { data: Data }) {
     </div>
   );
 }
-function Onboarding({ profile }: { profile: Profile }) {
+function Onboarding({ data }: { data: Data }) {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState(profile);
+  const [draft, setDraft] = useState(data.profile);
   const [busy, setBusy] = useState(false);
+  const [finishError, setFinishError] = useState("");
+  const [pendingPlan, setPendingPlan] = useState<unknown | null>(null);
   const [restorePreview, setRestorePreview] = useState<ReturnType<
     typeof parseBackup
   > | null>(null);
@@ -456,10 +507,21 @@ function Onboarding({ profile }: { profile: Profile }) {
   const readBackup = async (file: File) => {
     try {
       setRestoreError("");
-      setRestorePreview(parseBackup(JSON.parse(await file.text())));
+      const raw: unknown = JSON.parse(await file.text());
+      if (isPersonalMealPlanFile(raw)) {
+        parsePersonalMealPlan(raw);
+        setPendingPlan(raw);
+        setRestorePreview(null);
+        return;
+      }
+      setPendingPlan(null);
+      setRestorePreview(parseBackup(raw));
     } catch (e) {
-      setRestoreError(String(e));
+      setRestoreError(
+        e instanceof Error ? e.message : "Could not read this file.",
+      );
       setRestorePreview(null);
+      setPendingPlan(null);
     }
   };
   const restore = async () => {
@@ -490,29 +552,59 @@ function Onboarding({ profile }: { profile: Profile }) {
     setDraft((p) => ({ ...p, [key]: value }));
   const finish = async () => {
     setBusy(true);
-    await db.profiles.put({ ...draft, onboarded: true, personalized: true });
-    await db.preferences.put({ id: "me", theme: draft.theme });
-    if (!(await db.recipes.count()))
-      await db.recipes.bulkAdd([...seedRecipes, ...curatedRecipes]);
-    if (!(await db.ingredients.count()))
-      await db.ingredients.bulkPut(
-        catalogFromRecipes([...seedRecipes, ...curatedRecipes]),
+    setFinishError("");
+    try {
+      await db.transaction(
+        "rw",
+        [
+          db.profiles,
+          db.preferences,
+          db.recipes,
+          db.ingredients,
+          db.templates,
+          db.meals,
+          db.planWeeks,
+        ],
+        async () => {
+          await db.profiles.put({
+            ...draft,
+            onboarded: true,
+            personalized: true,
+          });
+          await db.preferences.put({ id: "me", theme: draft.theme });
+          if (!data.recipes.length)
+            await db.recipes.bulkPut([...seedRecipes, ...curatedRecipes]);
+          if (!data.ingredients.length)
+            await db.ingredients.bulkPut(
+              catalogFromRecipes([...seedRecipes, ...curatedRecipes]),
+            );
+          if (!data.templates.length)
+            await db.templates.bulkPut(builtInTemplates);
+          if (!data.meals.length) {
+            await db.meals.bulkAdd(
+              weekFromTemplate(builtInTemplates[0], weekOf(today())),
+            );
+            await db.planWeeks.put({
+              week: weekOf(today()),
+              templateId: builtInTemplates[0].id,
+            });
+          }
+        },
       );
-    if (!(await db.templates.count()))
-      await db.templates.bulkAdd(builtInTemplates);
-    if (!(await db.meals.count())) {
-      await db.meals.bulkAdd(
-        weekFromTemplate(builtInTemplates[0], weekOf(today())),
+      if (!data.planWeeks.length) await ensureUpcomingPlan();
+      localStorage.removeItem("nourish-erased");
+      navigate(
+        pendingPlan ? "/plan" : "/",
+        pendingPlan ? { state: { planFile: pendingPlan } } : undefined,
       );
-      await db.planWeeks.put({
-        week: weekOf(today()),
-        templateId: builtInTemplates[0].id,
-      });
+    } catch (error) {
+      setFinishError(
+        error instanceof Error
+          ? error.message
+          : "Could not save your profile. Please try again.",
+      );
+      setBusy(false);
     }
-    await ensureUpcomingPlan();
-    localStorage.removeItem("nourish-erased");
-    setBusy(false);
-    navigate("/");
   };
   return (
     <main className="onboard">
@@ -563,6 +655,12 @@ function Onboarding({ profile }: { profile: Profile }) {
                 />
               </label>
               {restoreError && <p className="error">{restoreError}</p>}
+              {pendingPlan !== null && (
+                <p className="onboard-plan-ready" role="status">
+                  Your weekly plan is ready. Finish your profile to review its
+                  28 meals.
+                </p>
+              )}
               {restorePreview && (
                 <div className="import-preview">
                   <b>Backup ready to restore</b>
@@ -772,10 +870,19 @@ function Onboarding({ profile }: { profile: Profile }) {
             }
             onClick={() => (step < 2 ? setStep(step + 1) : finish())}
           >
-            {step < 2 ? "Continue" : "Start my journey"}{" "}
+            {busy
+              ? "Opening your plan…"
+              : step < 2
+                ? "Continue"
+                : "Start my journey"}{" "}
             <ChevronRight size={18} />
           </Button>
         </div>
+        {finishError && (
+          <p className="error" role="alert">
+            {finishError}
+          </p>
+        )}
       </div>
     </main>
   );
@@ -823,6 +930,12 @@ function Dashboard({
   const next = upcoming?.meal;
   const recipe = recipes.find((r) => r.id === next?.recipeId);
   const completed = todays.filter((m) => m.status === "eaten").length;
+  const dayMessage =
+    completed === 0
+      ? "Your day is ready. Begin with the next meal when it suits you."
+      : completed >= todays.length
+        ? "You made room for your meals today. Take a moment to notice what worked."
+        : "One meal at a time is a good rhythm. Your plan is here when you need it.";
   const planned = todays
     .filter((m) => m.status !== "skipped")
     .reduce((s, m) => {
@@ -859,18 +972,43 @@ function Dashboard({
   return (
     <>
       <div className="welcome">
-        <div>
-          <p className="eyebrow">{format(new Date(), "EEEE, d MMMM yyyy")}</p>
+        <div className="welcome-content">
+          <p className="eyebrow">{format(now, "EEEE, d MMMM yyyy")}</p>
           <h1>
             Good{" "}
-            {new Date().getHours() < 12
+            {now.getHours() < 12
               ? "morning"
-              : new Date().getHours() < 17
+              : now.getHours() < 17
                 ? "afternoon"
                 : "evening"}
             , {p.name} <span>✳</span>
           </h1>
-          <p>Your next small step starts here.</p>
+          <p>{dayMessage}</p>
+          <div
+            className="welcome-progress"
+            aria-label={`${completed} of ${todays.length} meals enjoyed today`}
+          >
+            <div className="welcome-progress-dots" aria-hidden="true">
+              {todays.map((meal) => (
+                <span
+                  key={meal.id}
+                  className={
+                    meal.status === "eaten"
+                      ? "done"
+                      : meal.status === "skipped"
+                        ? "skipped"
+                        : ""
+                  }
+                />
+              ))}
+            </div>
+            <strong>
+              {completed} of {todays.length} meals enjoyed today
+            </strong>
+          </div>
+          <Button variant="secondary" onClick={() => navigate("/plan")}>
+            See today’s plan <ChevronRight size={16} />
+          </Button>
         </div>
         <div className="header-flower">✿</div>
       </div>
@@ -1201,10 +1339,12 @@ function Dashboard({
           </Card>
           <Card className="encourage">
             <span>✦</span>
-            <h3>Keep it simple.</h3>
-            <p>
-              Regular meals and small choices can build a routine you enjoy.
-            </p>
+            <h3>
+              {completed
+                ? "A little progress, your way."
+                : "Start where you are."}
+            </h3>
+            <p>{dayMessage}</p>
           </Card>
         </div>
       </div>
@@ -1227,6 +1367,7 @@ async function setHabit(
 }
 function Planner({ data }: { data: Data }) {
   const navigate = useNavigate();
+  const route = useLocation();
   const plannerDate = useUiStore((x) => x.plannerDate);
   const setPlannerDate = useUiStore((x) => x.setPlannerDate);
   const view = useUiStore((x) => x.plannerView);
@@ -1243,6 +1384,21 @@ function Planner({ data }: { data: Data }) {
   const [importBusy, setImportBusy] = useState(false);
   const [importNotice, setImportNotice] = useState("");
   const [expandedDays, setExpandedDays] = useState<string[]>([plannerDate]);
+  useEffect(() => {
+    const planFile = (route.state as { planFile?: unknown } | null)?.planFile;
+    if (!planFile) return;
+    try {
+      setImportError("");
+      setImportPreview(parsePersonalMealPlan(planFile));
+    } catch (error) {
+      setImportError(
+        error instanceof Error
+          ? error.message
+          : "Could not read this meal plan.",
+      );
+    }
+    navigate(route.pathname, { replace: true, state: null });
+  }, [route.state, route.pathname, navigate]);
   useEffect(() => setExpandedDays([plannerDate]), [plannerDate]);
   const { meals, recipes, prices, profile: p, templates } = data;
   const repeatingTemplate =
@@ -4954,6 +5110,7 @@ function download(name: string, blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function Backup({ data }: { data: Data }) {
+  const navigate = useNavigate();
   const [preview, setPreview] = useState<{
     schemaVersion: 5;
     exportedAt: string;
@@ -4978,7 +5135,11 @@ function Backup({ data }: { data: Data }) {
   const read = async (file: File) => {
     setError("");
     try {
-      const raw = JSON.parse(await file.text());
+      const raw: unknown = JSON.parse(await file.text());
+      if (isPersonalMealPlanFile(raw)) {
+        navigate("/plan", { state: { planFile: raw } });
+        return;
+      }
       setPreview(
         parseBackup(raw) as {
           schemaVersion: 5;
@@ -5053,6 +5214,22 @@ function Backup({ data }: { data: Data }) {
         </p>
         <Button onClick={exportData}>
           <Download size={17} /> Export JSON backup
+        </Button>
+      </Card>
+      <Card className="plan-import-entry">
+        <span className="plan-import-entry-icon">
+          <CalendarDays size={22} />
+        </span>
+        <div>
+          <span className="eyebrow">HAVE A WEEKLY MEAL PLAN?</span>
+          <h2>Make your week your own.</h2>
+          <p>
+            Import your seven-day plan in Planner. You can preview all 28 meals
+            before choosing to use it.
+          </p>
+        </div>
+        <Button variant="secondary" onClick={() => navigate("/plan")}>
+          Import Meal Plan <ChevronRight size={16} />
         </Button>
       </Card>
       <Card className="settings-card">

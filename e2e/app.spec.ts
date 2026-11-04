@@ -31,16 +31,15 @@ test("mobile first launch, planning, local data, backup and offline", async ({
     .click();
   await expect(page.getByText(/250 ml milk/).first()).toBeVisible();
   await page.getByRole("button", { name: "Replace", exact: true }).click();
-  await page
+  const replacement = page
     .getByRole("dialog")
-    .getByLabel("Search meals")
-    .fill("Oats with banana");
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: /Oats with banana/ })
-    .click();
+    .locator(".replace-results button")
+    .first();
+  const replacementName = await replacement.locator("b").textContent();
+  expect(replacementName).toBeTruthy();
+  await replacement.click();
   await expect(
-    page.getByRole("heading", { name: "Oats with banana" }).first(),
+    page.getByRole("heading", { name: replacementName!, exact: true }).first(),
   ).toBeVisible();
   await page.goto("/personalize");
   await expect(page.getByText("Let’s make this yours.")).toBeVisible();

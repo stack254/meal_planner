@@ -48,19 +48,23 @@ const plan = {
   ),
 };
 
-test("imports a personal weekly plan through Planner and keeps it after reload", async ({
+test("routes a meal-plan file from Backup to Planner and keeps it after reload", async ({
   page,
 }) => {
-  await page.goto("/plan");
+  await page.goto("/backup");
   await expect(
-    page.getByRole("heading", { name: "Meal planner" }),
+    page.getByRole("heading", { name: "Data & backup" }),
   ).toBeVisible();
-  const input = page.locator(".plan-import-trigger input[type=file]");
-  await input.setInputFiles({
+  await expect(
+    page.getByRole("button", { name: "Import Meal Plan" }),
+  ).toBeVisible();
+  await page.locator(".settings-card input[type=file]").setInputFiles({
     name: "personal-plan.json",
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(plan)),
   });
+  await expect(page).toHaveURL(/\/plan$/);
+  const input = page.locator(".plan-import-trigger input[type=file]");
   const dialog = page.getByRole("dialog", {
     name: "Review your personal plan",
   });
@@ -93,4 +97,24 @@ test("imports a personal weekly plan through Planner and keeps it after reload",
   await page.getByRole("button", { name: "7-day week" }).click();
   await page.getByRole("button", { name: "Expand all days" }).click();
   await expect(page.locator(".plan-meal")).toHaveCount(28);
+});
+
+test("onboarding can carry a selected weekly plan into its preview", async ({
+  page,
+}) => {
+  await page.goto("/personalize");
+  await page.locator(".onboard-restore input[type=file]").setInputFiles({
+    name: "personal-plan.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(plan)),
+  });
+  await expect(
+    page.getByText("Your weekly plan is ready.", { exact: false }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await page.getByRole("button", { name: /Continue/ }).click();
+  await page.getByRole("button", { name: /Start my journey/ }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Review your personal plan" }),
+  ).toBeVisible();
 });

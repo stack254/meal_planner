@@ -34,6 +34,8 @@ Shopping needs aggregate scheduled ingredients and subtract usable pantry stock.
 
 In **Planner**, choose **Import Meal Plan** and select a `nourish-personal-weekly-plan` JSON file from your device. Nourish validates the seven days and 28 meals, then shows each meal, time, ingredients and alternatives before saving. Choose **Save plan** to keep it for later, or **Import & activate** to use it from the current week and repeat it in future weeks. The imported supper time becomes Nourish's supper slot; your other profile details and weight history stay as they are. Reimporting the same `plan_id` updates its template without creating duplicate meals. Existing completed meals and edited scheduled meals remain in place.
 
+If you select a weekly plan from **Data & backup** or the first-use backup picker, Nourish takes it to the Planner preview. It never treats a meal plan as a full database restore.
+
 Imported plans do not include trusted live prices. Enter ingredient package prices in **More → Pantry & prices** to calculate estimates. Partial totals are marked with a `+` and missing prices are never counted as purchases. Shopping quantities include portion changes and added foods, then subtract usable pantry stock. If known costs already exceed a daily or weekly budget, Planner shows a warning and alternatives from the imported file.
 
 A personal plan import is separate from a complete data backup. Export a complete backup through **More → Data & backup** to preserve purchases, weight entries, profile and other records.

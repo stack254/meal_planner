@@ -123,6 +123,14 @@ export type PersonalPlanPreview = {
   recipes: Recipe[];
   mealTimes: Record<Slot, string>;
 };
+export function isPersonalMealPlanFile(raw: unknown): boolean {
+  return Boolean(
+    raw &&
+    typeof raw === "object" &&
+    "format" in raw &&
+    raw.format === "nourish-personal-weekly-plan",
+  );
+}
 const aliases: Record<string, string> = {
   "whole milk": "milk",
   "rice dry": "rice",
