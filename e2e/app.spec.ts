@@ -244,6 +244,14 @@ test("replacement browser is readable and swaps chicken for beef", async ({
     .getByLabel("Search meals")
     .fill("chicken stew");
   await page.screenshot({ path: "test-results/replace-meal-mobile.png" });
+  await page.setViewportSize({ width: 412, height: 540 });
+  const compactDialog = page.getByRole("dialog");
+  await expect(compactDialog.getByLabel("Search meals")).toBeVisible();
+  await expect(compactDialog.locator(".replace-results button").first()).toBeVisible();
+  const compactBounds = await compactDialog.boundingBox();
+  expect(compactBounds).not.toBeNull();
+  expect(compactBounds!.y + compactBounds!.height).toBeLessThanOrEqual(541);
+  await page.setViewportSize({ width: 412, height: 915 });
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,

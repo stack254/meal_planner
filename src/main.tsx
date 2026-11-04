@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
   lazy,
   Suspense,
@@ -2500,11 +2501,50 @@ function MealActions({
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [quickOnly, setQuickOnly] = useState(false);
   const [group, setGroup] = useState("All");
+  const [showAllMeals, setShowAllMeals] = useState(false);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const [diet, setDiet] = useState("Any diet");
   const [error, setError] = useState("");
   const [date, setDate] = useState(meal.date);
   const [slot, setSlot] = useState<Slot>(meal.slot);
   const [portion, setPortion] = useState(meal.portion);
+  useEffect(() => {
+    if (tab !== "replace" || !window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const dialog = document.querySelector<HTMLElement>(
+      ".meal-change-dialog.is-replacing",
+    );
+    if (!dialog) return;
+    const fitToKeyboard = () => {
+      dialog.style.setProperty(
+        "--replace-viewport-height",
+        `${viewport.height}px`,
+      );
+      dialog.style.setProperty(
+        "--replace-viewport-top",
+        `${viewport.offsetTop}px`,
+      );
+    };
+    fitToKeyboard();
+    viewport.addEventListener("resize", fitToKeyboard);
+    viewport.addEventListener("scroll", fitToKeyboard);
+    return () => {
+      viewport.removeEventListener("resize", fitToKeyboard);
+      viewport.removeEventListener("scroll", fitToKeyboard);
+    };
+  }, [tab]);
+  useEffect(() => {
+    resultsRef.current?.scrollTo({ top: 0 });
+  }, [
+    query,
+    group,
+    category,
+    sort,
+    pantryOnly,
+    favoritesOnly,
+    quickOnly,
+    diet,
+  ]);
   if (!current) return null;
   const existingNames = new Set(
     pantry.filter((p) => p.qty > 0).map((p) => p.name.toLowerCase()),
@@ -2571,6 +2611,29 @@ function MealActions({
   const slotMatches = textMatches.filter((r) =>
     recipeAllowedInSlot(r, meal.slot),
   );
+  const currentIngredientNames = new Set(
+    current.ingredients.map((item) => item.name.toLowerCase()),
+  );
+  const suggestedNames = new Set(
+    current.substitutions?.map((name) => name.toLowerCase()) || [],
+  );
+  const suggestionScore = (recipe: Recipe) =>
+    (suggestedNames.has(recipe.name.toLowerCase()) ? 100 : 0) +
+    (recipe.category === current.category ? 12 : 0) +
+    recipe.ingredients.filter((item) =>
+      currentIngredientNames.has(item.name.toLowerCase()),
+    ).length *
+      8 +
+    (recipe.favorite ? 3 : 0);
+  const searchScore = (recipe: Recipe) => {
+    const term = query.trim().toLowerCase();
+    if (!term) return suggestionScore(recipe);
+    return (
+      (recipe.name.toLowerCase().startsWith(term) ? 40 : 0) +
+      (recipe.name.toLowerCase().includes(term) ? 20 : 0) +
+      suggestionScore(recipe)
+    );
+  };
   options.sort((a, b) =>
     sort === "price"
       ? (mealCost(a, prices, meal.portion).missing.length
@@ -2581,8 +2644,12 @@ function MealActions({
           : mealCost(b, prices, meal.portion).total)
       : sort === "time"
         ? (a.minutes || Infinity) - (b.minutes || Infinity)
-        : a.name.localeCompare(b.name),
+        : searchScore(b) - searchScore(a) || a.name.localeCompare(b.name),
   );
+  const visibleOptions =
+    query.trim() || showAllMeals || group !== "All"
+      ? options
+      : options.slice(0, 12);
   const chosen = data.ingredients.find((i) => i.name === ingredientName);
   const add = async () => {
     const side = recipes.find((r) => r.id === sideId);
@@ -2636,13 +2703,15 @@ function MealActions({
     <Modal
       title={`${tab === "replace" ? "Replace" : "Change"} ${meal.slot === "dinner" ? "supper" : meal.slot}`}
       onClose={onClose}
-      className="meal-change-dialog"
+      className={`meal-change-dialog ${tab === "replace" ? "is-replacing" : ""}`}
     >
       <div className="change-current">
         <span className="change-current-icon">{current.emoji}</span>
         <div>
           <small>
-            Currently planned · {meal.date} · {profile.mealTimes[meal.slot]}
+            {tab === "replace"
+              ? "Instead of"
+              : `Currently planned · ${meal.date} · ${profile.mealTimes[meal.slot]}`}
           </small>
           <strong>{current.name}</strong>
         </div>
@@ -2650,6 +2719,14 @@ function MealActions({
           {meal.portion} portion{meal.portion === 1 ? "" : "s"}
         </span>
       </div>
+      {tab === "replace" && meal.status !== "eaten" && (
+        <button
+          className="replace-switch-action"
+          onClick={() => setTab("food")}
+        >
+          Want to keep this meal? Add food to it instead
+        </button>
+      )}
       <div className="meal-tabs" role="tablist">
         <button
           className={tab === "food" ? "active" : ""}
@@ -2782,36 +2859,76 @@ function MealActions({
       )}
       {meal.status !== "eaten" && tab === "replace" && (
         <div className="replace-browser">
-          <label className="replace-search">
+          <div className="replace-search">
             <Search size={19} aria-hidden="true" />
             <input
               aria-label="Search meals"
-              placeholder="Search a dish or ingredient, e.g. beef stew"
+              placeholder="Search meals or ingredients"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              autoFocus
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setGroup("All");
+                setCategory("All");
+                setDiet("Any diet");
+                setFavoritesOnly(false);
+                setPantryOnly(false);
+                setQuickOnly(false);
+                setShowAllMeals(false);
+              }}
             />
-          </label>
-          <div className="replace-groups">
-            {[
-              "All",
-              "Similar",
-              "Cheaper",
-              "Other proteins",
-              "Pantry",
-              "Quick",
-            ].map((g) => (
+            {query && (
               <button
-                key={g}
-                className={group === g ? "active" : ""}
-                onClick={() => setGroup(g)}
+                type="button"
+                className="replace-clear-search"
+                aria-label="Clear search"
+                onClick={() => setQuery("")}
               >
-                {g}
+                <X size={18} />
+              </button>
+            )}
+          </div>
+          <div className="replace-quick-picks" aria-label="Quick searches">
+            {["Beef", "Chicken", "Fish", "Beans", "Eggs"].map((term) => (
+              <button
+                key={term}
+                className={
+                  query.toLowerCase() === term.toLowerCase() ? "active" : ""
+                }
+                onClick={() => {
+                  setQuery(term);
+                  setGroup("All");
+                  setCategory("All");
+                  setDiet("Any diet");
+                  setFavoritesOnly(false);
+                  setPantryOnly(false);
+                  setQuickOnly(false);
+                  setShowAllMeals(false);
+                }}
+              >
+                {term}
               </button>
             ))}
           </div>
           <details className="advanced-filters">
-            <summary>More filters</summary>
+            <summary>Filters and sorting</summary>
+            <div className="replace-groups">
+              {[
+                "All",
+                "Similar",
+                "Cheaper",
+                "Other proteins",
+                "Pantry",
+                "Quick",
+              ].map((g) => (
+                <button
+                  key={g}
+                  className={group === g ? "active" : ""}
+                  onClick={() => setGroup(g)}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
             <div className="replace-filters">
               <select
                 aria-label="Dietary preference"
@@ -2868,10 +2985,12 @@ function MealActions({
               </label>
             </div>
           </details>
-          <p className="replace-count">
-            {options.length} meal{options.length === 1 ? "" : "s"} available for
-            this slot
-            {prices.length === 0 ? " · Add prices to compare costs" : ""}
+          <p className="replace-count" role="status">
+            {query.trim()
+              ? `${options.length} ${options.length === 1 ? "meal" : "meals"} for “${query.trim()}”`
+              : group === "All" && !showAllMeals
+                ? `Good matches for ${meal.slot === "dinner" ? "supper" : meal.slot}`
+                : `${options.length} ${options.length === 1 ? "meal" : "meals"} to choose from`}
           </p>
           {query.trim() && !options.length && textMatches.length > 0 && (
             <p className="inline-tip" role="status">
@@ -2882,16 +3001,8 @@ function MealActions({
                   : "Matching meals are hidden by the selected filters or food restrictions. Choose All and clear More filters to see compatible meals."}
             </p>
           )}
-          {current.substitutions?.length ? (
-            <p className="inline-tip">
-              Alternatives in your imported plan:{" "}
-              {current.substitutions.join(" · ")}. Search above to choose a
-              matching recipe. Prices need your entries before cost comparisons
-              are available.
-            </p>
-          ) : null}
-          <div className="replace-results">
-            {options.slice(0, 80).map((r) => {
+          <div className="replace-results" ref={resultsRef}>
+            {visibleOptions.slice(0, 100).map((r) => {
               const cost = mealCost(r, prices, meal.portion);
               return (
                 <button key={r.id} onClick={() => replace(r.id)}>
@@ -2912,10 +3023,23 @@ function MealActions({
                         : `${money(cost.total, profile)}${currentCost.missing.length ? "" : ` · ${cost.total - currentCost.total >= 0 ? "+" : ""}${money(cost.total - currentCost.total, profile)} vs current`}`}
                     </small>
                   </span>
-                  <span className="result-select">Choose</span>
+                  <span className="result-select">
+                    Use <ChevronRight size={15} />
+                  </span>
                 </button>
               );
             })}
+            {!query.trim() &&
+              group === "All" &&
+              !showAllMeals &&
+              options.length > 12 && (
+                <button
+                  className="replace-show-all"
+                  onClick={() => setShowAllMeals(true)}
+                >
+                  Browse all {options.length} meals <ChevronRight size={17} />
+                </button>
+              )}
             {!options.length && (
               <div className="replace-empty">
                 <Search size={26} />
