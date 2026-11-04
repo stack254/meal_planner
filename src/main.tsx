@@ -1057,19 +1057,24 @@ function Dashboard({
   const tea = habits.find((h) => h.date === day && h.key === "tea")?.value || 0;
   const water =
     habits.find((h) => h.date === day && h.key === "water")?.value || 0;
+  const hour = now.getHours();
+  const dayPhase =
+    hour >= 5 && hour < 11
+      ? "morning"
+      : hour >= 11 && hour < 17
+        ? "afternoon"
+        : hour >= 17 && hour < 20
+          ? "evening"
+          : "night";
   return (
     <>
-      <div className="welcome">
+      <div className={`welcome time-${dayPhase}`}>
         <div className="welcome-content">
-          <p className="eyebrow">{format(now, "EEEE, d MMMM yyyy")}</p>
+          <p className="eyebrow">
+            {format(now, "EEEE, d MMMM")} · {format(now, "h:mm a")}
+          </p>
           <h1>
-            Good{" "}
-            {now.getHours() < 12
-              ? "morning"
-              : now.getHours() < 17
-                ? "afternoon"
-                : "evening"}
-            , {p.name} <span>✳</span>
+            Good {dayPhase === "night" ? "evening" : dayPhase}, {p.name}
           </h1>
           <p>{dayMessage}</p>
           <div
@@ -1098,7 +1103,6 @@ function Dashboard({
             See today’s plan <ChevronRight size={16} />
           </Button>
         </div>
-        <div className="header-flower">✿</div>
       </div>
       {!p.personalized && (
         <Card className="starter-card">
@@ -1121,43 +1125,6 @@ function Dashboard({
           </div>
         </Card>
       )}
-      <div className="stat-grid">
-        <Card>
-          <span className="stat-icon sage">
-            <Check size={19} />
-          </span>
-          <p>Meals enjoyed</p>
-          <strong>
-            {completed}
-            <small> / {todays.length || p.meals}</small>
-          </strong>
-          <span className="stat-foot">today</span>
-        </Card>
-        <Card>
-          <span className="stat-icon peach">
-            <Wallet size={19} />
-          </span>
-          <p>Planned meals</p>
-          <strong>
-            {prices.length && !plannedMissing ? money(planned, p) : "—"}
-          </strong>
-          <span className="stat-foot">
-            {plannedMissing
-              ? "some prices missing"
-              : prices.length
-                ? "estimated cost"
-                : "add ingredient prices"}
-          </span>
-        </Card>
-        <Card>
-          <span className="stat-icon cream">
-            <ShoppingBasket size={19} />
-          </span>
-          <p>Actual spending</p>
-          <strong>{money(spent, p)}</strong>
-          <span className="stat-foot">recorded today</span>
-        </Card>
-      </div>
       <div className="dashboard-grid">
         <div>
           <div className="section-heading">
@@ -1231,39 +1198,13 @@ function Dashboard({
                     {next.portion} portion{next.portion === 1 ? "" : "s"}
                   </span>
                 </div>
-                <div className="button-row">
+                <div className="button-row meal-primary-actions">
                   <Button
                     onClick={() =>
                       setMealStatus(next, "eaten", recipes, prices)
                     }
                   >
                     <Check size={17} /> Mark eaten
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() =>
-                      setMealStatus(next, "skipped", recipes, prices)
-                    }
-                  >
-                    Skip
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setActionTab("details");
-                      setActionMeal(next);
-                    }}
-                  >
-                    View recipe
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setActionTab("food");
-                      setActionMeal(next);
-                    }}
-                  >
-                    Add food
                   </Button>
                   <Button
                     variant="secondary"
@@ -1274,6 +1215,31 @@ function Dashboard({
                   >
                     Replace
                   </Button>
+                </div>
+                <div className="meal-secondary-actions">
+                  <button
+                    onClick={() => {
+                      setActionTab("food");
+                      setActionMeal(next);
+                    }}
+                  >
+                    Add food
+                  </button>
+                  <button
+                    onClick={() => {
+                      setActionTab("details");
+                      setActionMeal(next);
+                    }}
+                  >
+                    View recipe
+                  </button>
+                  <button
+                    onClick={() =>
+                      setMealStatus(next, "skipped", recipes, prices)
+                    }
+                  >
+                    Skip
+                  </button>
                 </div>
               </div>
             </Card>
@@ -1436,6 +1402,46 @@ function Dashboard({
           </Card>
         </div>
       </div>
+      <section className="home-at-a-glance" aria-label="Today at a glance">
+        <h2>Today at a glance</h2>
+        <div className="stat-grid">
+          <Card>
+            <span className="stat-icon sage">
+              <Check size={19} />
+            </span>
+            <p>Meals enjoyed</p>
+            <strong>
+              {completed}
+              <small> / {todays.length || p.meals}</small>
+            </strong>
+            <span className="stat-foot">today</span>
+          </Card>
+          <Card>
+            <span className="stat-icon peach">
+              <Wallet size={19} />
+            </span>
+            <p>Planned meals</p>
+            <strong>
+              {prices.length && !plannedMissing ? money(planned, p) : "—"}
+            </strong>
+            <span className="stat-foot">
+              {plannedMissing
+                ? "some prices missing"
+                : prices.length
+                  ? "estimated cost"
+                  : "add ingredient prices"}
+            </span>
+          </Card>
+          <Card>
+            <span className="stat-icon cream">
+              <ShoppingBasket size={19} />
+            </span>
+            <p>Actual spending</p>
+            <strong>{money(spent, p)}</strong>
+            <span className="stat-foot">recorded today</span>
+          </Card>
+        </div>
+      </section>
     </>
   );
 }

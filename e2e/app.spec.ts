@@ -1,5 +1,47 @@
 import { test, expect } from "@playwright/test";
 
+test("home landscape follows the device time and reduced-motion setting", async ({
+  page,
+}) => {
+  await page.clock.install({ time: new Date(2026, 10, 4, 7, 0) });
+  await page.goto("/");
+  for (const [hour, phase, image] of [
+    [7, "morning", "sunrise.webp"],
+    [13, "afternoon", "afternoon.webp"],
+    [18, "evening", "sunset.webp"],
+    [22, "night", "moon.webp"],
+  ] as const) {
+    await page.clock.setFixedTime(new Date(2026, 10, 4, hour, 0));
+    await page.reload();
+    const welcome = page.locator(".welcome");
+    await expect(welcome).toBeVisible();
+    await expect(welcome).toHaveClass(new RegExp(`time-${phase}`));
+    const scene = await welcome.evaluate(
+      (el) => getComputedStyle(el, "::before").backgroundImage,
+    );
+    expect(scene).toContain(image);
+    if (phase === "morning" || phase === "evening") {
+      await expect
+        .poll(() =>
+          page
+            .locator("main")
+            .first()
+            .evaluate((el) => Number(getComputedStyle(el).opacity)),
+        )
+        .toBe(1);
+      await page.screenshot({ path: `test-results/home-${phase}.png` });
+    }
+  }
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect
+    .poll(() =>
+      page
+        .locator(".welcome")
+        .evaluate((el) => getComputedStyle(el, "::before").animationName),
+    )
+    .toBe("none");
+});
+
 test("records a bulk purchase with its actual quantity and keeps it in pantry", async ({
   page,
 }) => {
@@ -28,7 +70,19 @@ test("mobile first launch, planning, local data, backup and offline", async ({
   test.setTimeout(90000);
   await page.goto("/");
   await expect(page.getByText(/Good .*Friend/)).toBeVisible();
+  expect(
+    await page
+      .locator(".welcome")
+      .evaluate((el) => getComputedStyle(el, "::before").backgroundImage),
+  ).toContain("/day-scenes/");
   await expect(page.getByText("Today’s meals")).toBeVisible();
+  const nextMealTop = await page
+    .locator(".next-meal")
+    .evaluate((el) => el.getBoundingClientRect().top);
+  const statsTop = await page
+    .locator(".home-at-a-glance")
+    .evaluate((el) => el.getBoundingClientRect().top);
+  expect(nextMealTop).toBeLessThan(statsTop);
   await expect(page.getByText("READY TO USE · SAMPLE PROFILE")).toBeVisible();
   await expect(page.getByText(/No weigh-in recorded yet/)).toBeVisible();
   await page.screenshot({
@@ -247,7 +301,9 @@ test("replacement browser is readable and swaps chicken for beef", async ({
   await page.setViewportSize({ width: 412, height: 540 });
   const compactDialog = page.getByRole("dialog");
   await expect(compactDialog.getByLabel("Search meals")).toBeVisible();
-  await expect(compactDialog.locator(".replace-results button").first()).toBeVisible();
+  await expect(
+    compactDialog.locator(".replace-results button").first(),
+  ).toBeVisible();
   const compactBounds = await compactDialog.boundingBox();
   expect(compactBounds).not.toBeNull();
   expect(compactBounds!.y + compactBounds!.height).toBeLessThanOrEqual(541);
