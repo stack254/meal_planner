@@ -259,10 +259,48 @@ function Header({
   );
 }
 const fmt = (d: string) => format(parseISO(d), "EEE, d MMM");
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+const inStandaloneMode = () =>
+  window.matchMedia("(display-mode: standalone)").matches ||
+  (navigator as Navigator & { standalone?: boolean }).standalone === true;
 function App() {
   const { data, error } = useData();
   const [offline, setOffline] = useState(!navigator.onLine);
   const [update, setUpdate] = useState<(() => void) | null>(null);
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(
+    null,
+  );
+  const [installed, setInstalled] = useState(inStandaloneMode);
+  useEffect(() => {
+    const offerInstall = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    const finishInstall = () => {
+      setInstallPrompt(null);
+      setInstalled(true);
+    };
+    window.addEventListener("beforeinstallprompt", offerInstall);
+    window.addEventListener("appinstalled", finishInstall);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", offerInstall);
+      window.removeEventListener("appinstalled", finishInstall);
+    };
+  }, []);
+  const requestInstall = async () => {
+    if (!installPrompt) return;
+    const pending = installPrompt;
+    setInstallPrompt(null);
+    try {
+      await pending.prompt();
+      await pending.userChoice;
+    } catch {
+      // The browser menu remains available if its prompt is dismissed.
+    }
+  };
   useEffect(() => {
     const on = () => setOffline(!navigator.onLine);
     window.addEventListener("online", on);
@@ -315,16 +353,31 @@ function App() {
       </main>
     );
 
-  return <Shell data={data} offline={offline} update={update} />;
+  return (
+    <Shell
+      data={data}
+      offline={offline}
+      update={update}
+      installed={installed}
+      installAvailable={Boolean(installPrompt)}
+      onInstall={() => void requestInstall()}
+    />
+  );
 }
 function Shell({
   data,
   offline,
   update,
+  installed,
+  installAvailable,
+  onInstall,
 }: {
   data: Data;
   offline: boolean;
   update: (() => void) | null;
+  installed: boolean;
+  installAvailable: boolean;
+  onInstall: () => void;
 }) {
   const location = useLocation();
   const nav = useNavigate();
@@ -384,6 +437,18 @@ function Shell({
             )}
           </div>
         )}
+        {installAvailable && !installed && (
+          <div className="install-banner" role="status">
+            <span>
+              <Download size={20} />
+            </span>
+            <div>
+              <b>Keep Nourish close</b>
+              <p>Install it for quick access to your meals.</p>
+            </div>
+            <Button onClick={onInstall}>Install Nourish</Button>
+          </div>
+        )}
         <ReminderBanner data={data} />
         <motion.main
           key={location.pathname}
@@ -410,7 +475,17 @@ function Shell({
             <Route path="/profile" element={<ProfilePage data={data} />} />
             <Route path="/personalize" element={<Onboarding data={data} />} />
             <Route path="/backup" element={<Backup data={data} />} />
-            <Route path="/settings" element={<SettingsPage data={data} />} />
+            <Route
+              path="/settings"
+              element={
+                <SettingsPage
+                  data={data}
+                  installed={installed}
+                  installAvailable={installAvailable}
+                  onInstall={onInstall}
+                />
+              }
+            />
           </Routes>
         </motion.main>
       </div>
@@ -4998,9 +5073,21 @@ function ProfilePage({ data }: { data: Data }) {
     </>
   );
 }
-function SettingsPage({ data }: { data: Data }) {
+function SettingsPage({
+  data,
+  installed,
+  installAvailable,
+  onInstall,
+}: {
+  data: Data;
+  installed: boolean;
+  installAvailable: boolean;
+  onInstall: () => void;
+}) {
   const { profile: p, reminders } = data;
   const [draft, setDraft] = useState(p);
+  const isIPhone = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isAndroid = /Android/i.test(navigator.userAgent);
   const defaults = [
     ["breakfast", "Breakfast"],
     ["lunch", "Lunch"],
@@ -5071,13 +5158,56 @@ function SettingsPage({ data }: { data: Data }) {
           );
         })}
       </Card>
-      <Card className="settings-card">
+      <Card className="settings-card install-help">
         <h2>Install Nourish</h2>
-        <p>
-          On Android Chrome, open the browser menu and choose “Install app” or
-          “Add to Home screen.” Saved plans work offline after the app loads
-          once.
-        </p>
+        {installed ? (
+          <p>Nourish is open as an installed app on this device.</p>
+        ) : (
+          <>
+            <p>
+              Keep your meals and shopping list one tap away. Open the site once
+              online to cache it for offline use.
+            </p>
+            {installAvailable && (
+              <Button onClick={onInstall}>
+                <Download size={17} /> Install Nourish
+              </Button>
+            )}
+            {isIPhone ? (
+              <ol>
+                <li>Open Nourish in Safari.</li>
+                <li>
+                  Tap Share, then <b>Add to Home Screen</b>.
+                </li>
+                <li>
+                  Turn on <b>Open as Web App</b> if shown, then tap Add.
+                </li>
+              </ol>
+            ) : isAndroid ? (
+              <ol>
+                <li>Open Nourish in Chrome or Samsung Internet.</li>
+                <li>
+                  Open the browser menu and choose <b>Install app</b> or{" "}
+                  <b>Add to Home screen</b>.
+                </li>
+                <li>
+                  If the option is missing after removing the icon, check your
+                  app drawer or Android Settings → Apps → Nourish. It may still
+                  be installed.
+                </li>
+              </ol>
+            ) : (
+              <p>
+                Use your browser’s install command, usually in the address bar
+                or browser menu.
+              </p>
+            )}
+            <p className="hint">
+              Your records are stored on this device. Export a backup before
+              clearing browser site data or uninstalling.
+            </p>
+          </>
+        )}
       </Card>
     </>
   );

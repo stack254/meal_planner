@@ -42,7 +42,9 @@ A personal plan import is separate from a complete data backup. Export a complet
 
 ## Install and offline use
 
-Open the production build on localhost or an HTTPS origin. In Android Chrome, choose **Install app** or **Add to Home screen** from the browser menu. The manifest includes normal and maskable icons. After the app assets have loaded once, recipes, planning, shopping and weight logs work offline. App updates wait for you to choose **Reload now**. Reminders and countdowns work while Nourish is open; closed-app background notifications are not guaranteed.
+Open the production build on localhost or an HTTPS origin. When Chrome offers installation, Nourish shows its own **Install Nourish** button. On Android, you can also choose **Install app** or **Add to Home screen** from the Chrome or Samsung Internet menu. If the option is missing after removing an icon, check Android Settings → Apps and the app drawer: removing a Home-screen icon does not always uninstall the app.
+
+On iPhone, open Nourish in Safari, use **Share → Add to Home Screen**, enable **Open as Web App** if offered, then tap **Add**. iOS does not support the browser install prompt button. The manifest includes normal and maskable icons and an Apple touch icon. After the app assets have loaded once, recipes, planning, shopping and weight logs work offline. App updates wait for you to choose **Reload now**. Reminders and countdowns work while Nourish is open; closed-app background notifications are not guaranteed.
 
 ## Backup and restore
 
