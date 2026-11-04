@@ -64,7 +64,7 @@ test("routes a meal-plan file from Backup to Planner and keeps it after reload",
     buffer: Buffer.from(JSON.stringify(plan)),
   });
   await expect(page).toHaveURL(/\/plan$/);
-  const input = page.locator(".plan-import-trigger input[type=file]");
+  const input = page.locator(".plan-import-trigger input[type=file]").first();
   const dialog = page.getByRole("dialog", {
     name: "Use your weekly plan",
   });

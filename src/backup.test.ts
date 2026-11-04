@@ -28,6 +28,83 @@ describe("backup validation", () => {
       }).data.profiles,
     ).toHaveLength(1);
   });
+  it("preserves linked bulk stock and meal deductions in a backup", () => {
+    const result = parseBackup({
+      schemaVersion: 5,
+      exportedAt: "2026-11-04T12:00:00.000Z",
+      data: {
+        ...empty,
+        planWeeks: [],
+        pantry: [
+          {
+            id: "purchase:p",
+            name: "rice",
+            qty: 4.9,
+            unit: "kg",
+            sourcePurchaseId: "p",
+          },
+        ],
+        purchases: [
+          {
+            id: "p",
+            date: "2026-11-04",
+            name: "rice",
+            qty: 5,
+            unit: "kg",
+            amount: 1000,
+            checked: true,
+            listWeek: "2026-11-02",
+            pantryId: "purchase:p",
+          },
+        ],
+        meals: [
+          {
+            id: "m",
+            date: "2026-11-04",
+            slot: "lunch",
+            recipeId: "rice",
+            portion: 1,
+            status: "eaten",
+            pantryUsed: [
+              { pantryId: "purchase:p", name: "rice", unit: "kg", qty: 0.1 },
+            ],
+          },
+        ],
+      },
+    });
+    expect(result.data.pantry[0].sourcePurchaseId).toBe("p");
+    expect(result.data.purchases[0].pantryId).toBe("purchase:p");
+    expect(result.data.meals[0].pantryUsed?.[0].qty).toBe(0.1);
+  });
+  it("preserves four-week rotation and unpriced pack ingredients", () => {
+    const result = parseBackup({
+      schemaVersion: 5,
+      exportedAt: "2026-11-04T12:00:00.000Z",
+      data: {
+        ...empty,
+        planWeeks: [],
+        ingredients: [
+          {
+            name: "rice",
+            category: "Grains",
+            unit: "g",
+            fromPersonalPack: true,
+          },
+        ],
+        templates: [
+          {
+            id: "pack:test",
+            name: "Rotation",
+            createdAt: "2026-11-04",
+            items: [],
+            rotation: { anchorWeek: "2026-11-02", weeks: [[], [], [], []] },
+          },
+        ],
+      },
+    });
+    expect(result.data.ingredients[0].fromPersonalPack).toBe(true);
+    expect(result.data.templates[0].rotation?.weeks).toHaveLength(4);
+  });
   it("migrates a v1 backup", () => {
     const {
       templates: _,

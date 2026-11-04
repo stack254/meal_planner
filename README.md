@@ -30,15 +30,25 @@ Home shows the next scheduled meal using device-local time. The countdown update
 
 Shopping needs aggregate scheduled ingredients and subtract usable pantry stock. Enter a package price, quantity and unit to calculate an estimated consumed portion cost. Actual grocery purchases are recorded separately. Price estimates are unavailable when required prices are missing. Nutrition totals are omitted because no verified local nutrition dataset is bundled.
 
+When shopping, tap an item and enter the quantity and unit **actually bought** and the total paid. For example, buying 5 kg of rice for KSh 1,000 records KSh 1,000 as spending on the purchase date, adds 5 kg to the pantry, and updates the current rice price estimate. A meal using 100 g of rice has a KSh 20 estimated rice cost; that estimate is not another purchase. `kg`/`g` and `l`/`ml` convert automatically. Marking a meal eaten deducts available ingredients from pantry stock; changing it back restores those deductions. Only planned, uneaten meals contribute to the generated shopping needs. For foods prepared in a batch, enter any cooked leftovers manually in Pantry because Nourish cannot infer how much was left over.
+
 ## Import a personal weekly plan
 
-In **Planner**, choose **Import Meal Plan** and select a `nourish-personal-weekly-plan` JSON file from your device. Nourish validates the seven days and 28 meals, then shows each meal, time, ingredients and alternatives before saving. Choose **Save plan** to keep it for later, or **Import & activate** to use it from the current week and repeat it in future weeks. The imported supper time becomes Nourish's supper slot; your other profile details and weight history stay as they are. Reimporting the same `plan_id` updates its template without creating duplicate meals. Existing completed meals and edited scheduled meals remain in place.
+In **Planner**, choose **Import a weekly plan** and select a `nourish-personal-weekly-plan` JSON file from your device. Nourish validates the seven days and 28 meals, then shows each meal, time, ingredients and alternatives before saving. Choose **Save for later** to keep it, or **Use this plan** to start in the current week and repeat it in future weeks. The imported supper time becomes Nourish's supper slot; your other profile details and weight history stay as they are. Reimporting the same `plan_id` updates its template without creating duplicate meals. Existing completed meals and edited scheduled meals remain in place.
 
 If you select a weekly plan from **Data & backup** or the first-use backup picker, Nourish takes it to the Planner preview. It never treats a meal plan as a full database restore.
 
 Imported plans do not include trusted live prices. Enter ingredient package prices in **More → Pantry & prices** to calculate estimates. Partial totals are marked with a `+` and missing prices are never counted as purchases. Shopping quantities include portion changes and added foods, then subtract usable pantry stock. If known costs already exceed a daily or weekly budget, Planner shows a warning and alternatives from the imported file.
 
 A personal plan import is separate from a complete data backup. Export a complete backup through **More → Data & backup** to preserve purchases, weight entries, profile and other records.
+
+## Import a four-week personal meal pack
+
+In **Planner**, choose **Import Personal Meal Pack** for a `nourish-personal-meal-library-and-rotation` JSON file. Review the 144 recipes, 72 blank ingredient-price entries, four distinct weeks and 112 scheduled meals before confirming. You can activate the rotation immediately or save it for later. Applying the pack's sample weight goals and KSh budgets is a separate, optional choice. The app uses your device's local timezone for the four meal times. Reimports can skip, update unchanged defaults or replace this imported plan after confirmation; logged and edited meals, prices, purchases and weight entries remain in place.
+
+All imported recipes join the local searchable catalog, including their names, ingredient quantities, preparation steps, meal types and alternatives. A missing price is unknown, so those recipes remain searchable but are not labelled cheaper until prices have been entered. The four weeks repeat in order as future weeks are opened. This meal pack is separate from a full backup and does not connect to a server.
+
+The import maps `recipes` to Dexie `recipes`; `ingredient_prices` to ingredient catalog entries marked **Price not entered** while leaving existing `prices` untouched; `rotation.template_entries` to a four-week `templates` rotation and scheduled `meals`; and `profile` to optional profile defaults. Source recipe and entry IDs remain in the saved records. The pack's source timezone and notes remain in the template metadata; scheduling uses the device's local timezone.
 
 ## Install and offline use
 

@@ -1,5 +1,25 @@
 import { test, expect } from "@playwright/test";
 
+test("records a bulk purchase with its actual quantity and keeps it in pantry", async ({
+  page,
+}) => {
+  await page.goto("/shop");
+  await page.getByRole("button", { name: "Mark rice purchased" }).click();
+  const dialog = page.getByRole("dialog", { name: "Record purchase · rice" });
+  await dialog.getByLabel("Quantity bought").fill("5");
+  await dialog.getByLabel("Unit").selectOption("kg");
+  await dialog.getByLabel("Total paid (KES)").fill("1000");
+  await dialog.getByRole("button", { name: "Save purchase" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Purchase history" }),
+  ).toBeVisible();
+  await expect(page.getByText("bought 5 kg")).toBeVisible();
+  await page.goto("/pantry");
+  await expect(page.getByText("5 kg available")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("5 kg available")).toBeVisible();
+});
+
 test("mobile first launch, planning, local data, backup and offline", async ({
   page,
   context,
@@ -102,8 +122,15 @@ test("mobile first launch, planning, local data, backup and offline", async ({
     .click();
   await page.getByRole("link", { name: "Shopping" }).click();
   await expect(page.getByText("bananas").first()).toBeVisible();
-  page.once("dialog", (d) => d.accept("40"));
   await page.getByRole("button", { name: "Mark bananas purchased" }).click();
+  await page
+    .getByRole("dialog", { name: /Record purchase/ })
+    .getByLabel("Total paid (KES)")
+    .fill("40");
+  await page
+    .getByRole("dialog", { name: /Record purchase/ })
+    .getByRole("button", { name: "Save purchase" })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Purchase history" }),
   ).toBeVisible();

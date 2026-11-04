@@ -76,12 +76,15 @@ import {
   weekOf,
   uid,
   setMealStatus,
+  recordGroceryPurchase,
+  quantityInUnit,
   affordableAlternatives,
   budgetFor,
   catalogFromRecipes,
   effectiveRecipe,
   addFoods,
   weekFromTemplate,
+  templateItemsForWeek,
   ensureUpcomingPlan,
   setActiveTemplate,
   type PlanTemplate,
@@ -108,7 +111,15 @@ import {
   isPersonalMealPlanFile,
   type PersonalPlanPreview,
 } from "./mealPlanImport";
+import {
+  parsePersonalPack,
+  importPersonalPack,
+  isPersonalPackFile,
+  type PersonalPackPreview,
+  type PackImportMode,
+} from "./personalPackImport";
 import { nextMeal, slotOrder } from "./schedule";
+import { recipeMatchesQuery, recipeAllowedInSlot } from "./recipeSearch";
 import { curatedRecipes, builtInTemplates } from "./catalog";
 import { Button } from "./components/ui/button";
 import { Card } from "./components/ui/card";
@@ -583,8 +594,9 @@ function Onboarding({ data }: { data: Data }) {
     try {
       setRestoreError("");
       const raw: unknown = JSON.parse(await file.text());
-      if (isPersonalMealPlanFile(raw)) {
-        parsePersonalMealPlan(raw);
+      if (isPersonalPackFile(raw) || isPersonalMealPlanFile(raw)) {
+        if (isPersonalPackFile(raw)) parsePersonalPack(raw);
+        else parsePersonalMealPlan(raw);
         setPendingPlan(raw);
         setRestorePreview(null);
         return;
@@ -1455,6 +1467,12 @@ function Planner({ data }: { data: Data }) {
   const [applying, setApplying] = useState(false);
   const [importPreview, setImportPreview] =
     useState<PersonalPlanPreview | null>(null);
+  const [packPreview, setPackPreview] = useState<PersonalPackPreview | null>(
+    null,
+  );
+  const [packMode, setPackMode] = useState<PackImportMode>("update-unchanged");
+  const [packActivate, setPackActivate] = useState(true);
+  const [packProfileDefaults, setPackProfileDefaults] = useState(false);
   const [importError, setImportError] = useState("");
   const [importBusy, setImportBusy] = useState(false);
   const [importNotice, setImportNotice] = useState("");
@@ -1464,7 +1482,9 @@ function Planner({ data }: { data: Data }) {
     if (!planFile) return;
     try {
       setImportError("");
-      setImportPreview(parsePersonalMealPlan(planFile));
+      if (isPersonalPackFile(planFile))
+        setPackPreview(parsePersonalPack(planFile));
+      else setImportPreview(parsePersonalMealPlan(planFile));
     } catch (error) {
       setImportError(
         error instanceof Error
@@ -1475,6 +1495,10 @@ function Planner({ data }: { data: Data }) {
     navigate(route.pathname, { replace: true, state: null });
   }, [route.state, route.pathname, navigate]);
   useEffect(() => setExpandedDays([plannerDate]), [plannerDate]);
+  useEffect(() => {
+    if (weekOf(plannerDate) >= weekOf(today()))
+      void ensureUpcomingPlan(plannerDate);
+  }, [plannerDate]);
   const { meals, recipes, prices, profile: p, templates } = data;
   const repeatingTemplate =
     templates.find((t) => t.id === p.activeTemplateId) || builtInTemplates[0];
@@ -1516,13 +1540,18 @@ function Planner({ data }: { data: Data }) {
       eatenAt: old?.eatenAt,
       snapshot: old?.snapshot,
       loggedCost: old?.loggedCost,
+      pantryUsed: old?.pantryUsed,
     };
     await db.meals.put(saved);
     if (m.status === "eaten")
       await setMealStatus(saved, "eaten", recipes, prices);
-    else if (old?.status === "eaten") await db.mealRecords.delete(saved.id);
-    if (m.status === "skipped")
-      await db.meals.update(saved.id, { status: "skipped" });
+    else if (old?.status === "eaten" || m.status === "skipped")
+      await setMealStatus(
+        saved,
+        m.status === "skipped" ? "skipped" : "planned",
+        recipes,
+        prices,
+      );
     setEditing(null);
   };
   const createWeek = async () => {
@@ -1553,8 +1582,13 @@ function Planner({ data }: { data: Data }) {
   const applyTemplate = async (id: string, repeat = false) => {
     const template = templates.find((t) => t.id === id);
     if (!template) return;
+    const chosen =
+      repeat && template.rotation
+        ? { ...template, rotation: { ...template.rotation, anchorWeek: week } }
+        : template;
+    if (chosen !== template) await db.templates.put(chosen);
     await db.transaction("rw", db.meals, async () => {
-      for (const item of template.items) {
+      for (const item of templateItemsForWeek(chosen, week)) {
         const date = days[item.day];
         const existing = weekMeals.find(
           (m) => m.date === date && m.slot === item.slot,
@@ -1580,8 +1614,8 @@ function Planner({ data }: { data: Data }) {
       }
     });
     if (repeat) await setActiveTemplate(id);
-    if (template.mealTimes)
-      await db.profiles.update("me", { mealTimes: template.mealTimes });
+    if (chosen.mealTimes)
+      await db.profiles.update("me", { mealTimes: chosen.mealTimes });
     setApplying(false);
   };
   const selectPlanFile = async (file?: File) => {
@@ -1589,14 +1623,16 @@ function Planner({ data }: { data: Data }) {
     setImportNotice("");
     setImportPreview(null);
     if (!file) return;
-    if (file.size > 2_000_000) {
-      setImportError(
-        "This file is too large for a weekly meal plan (2 MB maximum).",
-      );
+    if (file.size > 3_000_000) {
+      setImportError("This file is too large for a meal plan (3 MB maximum).");
       return;
     }
     try {
       const raw: unknown = JSON.parse(await file.text());
+      if (isPersonalPackFile(raw)) {
+        setPackPreview(parsePersonalPack(raw));
+        return;
+      }
       if (!isPersonalMealPlanFile(raw)) {
         setImportError(
           "This is not a weekly meal plan. For a full Nourish backup, go to More → Data & backup.",
@@ -1612,6 +1648,47 @@ function Planner({ data }: { data: Data }) {
             ? error.message
             : "Could not read this meal plan.",
       );
+    }
+  };
+  const savePack = async () => {
+    if (!packPreview) return;
+    if (
+      packMode === "replace-plan" &&
+      templates.some((item) => item.id === packPreview.template.id) &&
+      !confirm(
+        "Replace this imported plan's default recipes and upcoming unchanged meals? Your meal history and edited meals will be kept.",
+      )
+    )
+      return;
+    setImportBusy(true);
+    setImportError("");
+    try {
+      await importPersonalPack(packPreview, {
+        mode: packMode,
+        activate: packActivate,
+        applyProfileDefaults: packProfileDefaults,
+      });
+      setImportNotice(
+        packMode === "skip" &&
+          templates.some((item) => item.id === packPreview.template.id)
+          ? "This meal pack was already saved. Nothing changed."
+          : packActivate
+            ? "Your four-week rotation is active. This week and next week are ready."
+            : "Meal pack saved. You can activate it from your plans.",
+      );
+      setPackPreview(null);
+      if (packActivate) {
+        setPlannerDate(today());
+        setView("today");
+      }
+    } catch (error) {
+      setImportError(
+        error instanceof Error
+          ? error.message
+          : "Meal pack could not be imported. No changes were saved.",
+      );
+    } finally {
+      setImportBusy(false);
     }
   };
   const saveImportedPlan = async (activate: boolean) => {
@@ -1707,6 +1784,17 @@ function Planner({ data }: { data: Data }) {
               }}
             />
           </label>
+          <label className="btn secondary plan-import-trigger">
+            <Upload size={17} /> Import Personal Meal Pack
+            <input
+              type="file"
+              accept=".json,application/json"
+              onChange={(event) => {
+                void selectPlanFile(event.target.files?.[0]);
+                event.target.value = "";
+              }}
+            />
+          </label>
         </div>
         {importNotice && (
           <p className="plan-import-notice" role="status">
@@ -1726,7 +1814,10 @@ function Planner({ data }: { data: Data }) {
                   <h3>{t.name}</h3>
                   <p>{t.description || "A plan saved from your own week."}</p>
                   <small>
-                    {t.items.length} meals ·{" "}
+                    {t.rotation
+                      ? `${t.rotation.weeks.length} weeks · ${t.rotation.weeks.reduce((sum, items) => sum + items.length, 0)} meals`
+                      : `${t.items.length} meals`}{" "}
+                    ·{" "}
                     {t.id === p.activeTemplateId
                       ? "Repeats automatically"
                       : "Ready to use"}
@@ -1781,12 +1872,17 @@ function Planner({ data }: { data: Data }) {
             Check your meals below, then tap <b>Use this plan</b>. It starts
             this week and keeps your meal history and other plans.
           </p>
-          <div className="plan-import-times" aria-label="Meal times from your file">
-            {(["breakfast", "lunch", "snack", "supper"] as const).map((slot) => (
-              <span key={slot}>
-                <b>{slot}</b> {importPreview.source.meal_times[slot]}
-              </span>
-            ))}
+          <div
+            className="plan-import-times"
+            aria-label="Meal times from your file"
+          >
+            {(["breakfast", "lunch", "snack", "supper"] as const).map(
+              (slot) => (
+                <span key={slot}>
+                  <b>{slot}</b> {importPreview.source.meal_times[slot]}
+                </span>
+              ),
+            )}
           </div>
           <div className="plan-import-days">
             {[
@@ -1805,7 +1901,9 @@ function Planner({ data }: { data: Data }) {
               >
                 <summary>
                   <strong>{day}</strong>
-                  <span>4 meals <ChevronRight size={16} /></span>
+                  <span>
+                    4 meals <ChevronRight size={16} />
+                  </span>
                 </summary>
                 {importPreview.source.meal_entries
                   .filter((entry) => entry.day === day)
@@ -1851,6 +1949,117 @@ function Planner({ data }: { data: Data }) {
               onClick={() => void saveImportedPlan(true)}
             >
               {importBusy ? "Saving…" : "Use this plan"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {packPreview && (
+        <Modal
+          title="Review your personal meal pack"
+          className="plan-import-dialog"
+          onClose={() => setPackPreview(null)}
+        >
+          <div className="plan-import-intro">
+            <span className="eyebrow">FOUR-WEEK ROTATION</span>
+            <h3>{packPreview.template.name}</h3>
+            <p>
+              {packPreview.recipes.length} recipes ·{" "}
+              {packPreview.ingredientCount} ingredients with prices to enter · 4
+              weeks · 112 meals
+            </p>
+          </div>
+          <p className="plan-import-help">
+            The four weeks repeat in order. Prices stay blank unless you have
+            entered them yourself. Activating sets the four meal times shown
+            below using your device's local timezone.
+          </p>
+          <div
+            className="plan-import-times"
+            aria-label="Meal times from your pack"
+          >
+            {(["breakfast", "lunch", "snack", "supper"] as const).map(
+              (slot) => (
+                <span key={slot}>
+                  <b>{slot}</b> {packPreview.source.meal_times[slot]}
+                </span>
+              ),
+            )}
+          </div>
+          <section className="plan-import-day pack-sample-day">
+            <strong>Week 1 · Monday sample</strong>
+            {packPreview.source.rotation.template_entries
+              .filter(
+                (entry) =>
+                  entry.week_index === 1 &&
+                  entry.weekday_index_monday_zero === 0,
+              )
+              .map((entry) => (
+                <div key={entry.id} className="plan-import-meal">
+                  <span>
+                    {entry.time} · {entry.slot}
+                  </span>
+                  <strong>{entry.title}</strong>
+                </div>
+              ))}
+          </section>
+          {templates.some((item) => item.id === packPreview.template.id) && (
+            <label className="pack-choice">
+              If this pack was imported before
+              <select
+                value={packMode}
+                onChange={(event) =>
+                  setPackMode(event.target.value as PackImportMode)
+                }
+              >
+                <option value="update-unchanged">
+                  Update unchanged recipes and plan
+                </option>
+                <option value="replace-plan">
+                  Replace this plan's defaults
+                </option>
+                <option value="skip">Skip this import</option>
+              </select>
+            </label>
+          )}
+          <label className="check-label pack-choice">
+            <input
+              type="checkbox"
+              checked={packActivate}
+              disabled={packMode === "skip"}
+              onChange={(event) => setPackActivate(event.target.checked)}
+            />
+            Activate the rotation from this week
+          </label>
+          <label className="check-label pack-choice">
+            <input
+              type="checkbox"
+              checked={packProfileDefaults}
+              disabled={packMode === "skip"}
+              onChange={(event) => setPackProfileDefaults(event.target.checked)}
+            />
+            Apply sample profile goals and KSh budgets from the pack
+          </label>
+          <p className="hint">
+            Your existing weight entries, purchases, saved prices and edited or
+            completed meals are kept.
+          </p>
+          {importError && (
+            <p className="error" role="alert">
+              {importError}
+            </p>
+          )}
+          <div className="modal-actions plan-import-actions">
+            <Button variant="secondary" onClick={() => setPackPreview(null)}>
+              Cancel
+            </Button>
+            <Button disabled={importBusy} onClick={() => void savePack()}>
+              {importBusy
+                ? "Importing…"
+                : packMode === "skip"
+                  ? "Close without changes"
+                  : packActivate
+                    ? "Import & use rotation"
+                    : "Save meal pack"}
             </Button>
           </div>
         </Modal>
@@ -2129,6 +2338,8 @@ function Planner({ data }: { data: Data }) {
                                           status: "planned",
                                           eatenAt: undefined,
                                           snapshot: undefined,
+                                          pantryUsed: [],
+                                          loggedCost: undefined,
                                         })
                                       }
                                     >
@@ -2325,7 +2536,7 @@ function MealActions({
   const options = recipes.filter(
     (r) =>
       r.id !== current.id &&
-      (!r.mealTypes?.length || r.mealTypes.includes(meal.slot)) &&
+      recipeAllowedInSlot(r, meal.slot) &&
       (group === "All" ||
         (group === "Similar" && r.category === current.category) ||
         (group === "Cheaper" &&
@@ -2352,10 +2563,13 @@ function MealActions({
           (b) => i.name.toLowerCase().includes(b) || r.allergens?.includes(b),
         ),
       ) &&
-      (r.name.toLowerCase().includes(query.toLowerCase()) ||
-        r.ingredients.some((i) =>
-          i.name.toLowerCase().includes(query.toLowerCase()),
-        )),
+      recipeMatchesQuery(r, query),
+  );
+  const textMatches = recipes.filter(
+    (r) => r.id !== current.id && recipeMatchesQuery(r, query),
+  );
+  const slotMatches = textMatches.filter((r) =>
+    recipeAllowedInSlot(r, meal.slot),
   );
   options.sort((a, b) =>
     sort === "price"
@@ -2659,6 +2873,15 @@ function MealActions({
             this slot
             {prices.length === 0 ? " · Add prices to compare costs" : ""}
           </p>
+          {query.trim() && !options.length && textMatches.length > 0 && (
+            <p className="inline-tip" role="status">
+              {slotMatches.length === 0
+                ? `${textMatches.length} matching meals are for other meal times. Try a compatible slot.`
+                : group === "Cheaper"
+                  ? "Matching meals need ingredient prices before cheaper options can be compared. Choose All to browse them."
+                  : "Matching meals are hidden by the selected filters or food restrictions. Choose All and clear More filters to see compatible meals."}
+            </p>
+          )}
           {current.substitutions?.length ? (
             <p className="inline-tip">
               Alternatives in your imported plan:{" "}
@@ -2685,7 +2908,7 @@ function MealActions({
                       {r.category} ·{" "}
                       {r.minutes > 0 ? `${r.minutes} min` : "Time not set"} ·{" "}
                       {cost.missing.length
-                        ? "Price unavailable"
+                        ? "Price not entered"
                         : `${money(cost.total, profile)}${currentCost.missing.length ? "" : ` · ${cost.total - currentCost.total >= 0 ? "+" : ""}${money(cost.total - currentCost.total, profile)} vs current`}`}
                     </small>
                   </span>
@@ -3046,21 +3269,37 @@ function Shop({ data }: { data: Data }) {
   const [qty, setQty] = useState(1);
   const [unit, setUnit] = useState("pcs");
   const [category, setCategory] = useState("Pantry essentials");
+  const [buying, setBuying] = useState<ListItem | null>(null);
+  const [boughtQty, setBoughtQty] = useState(1);
+  const [boughtUnit, setBoughtUnit] = useState("g");
+  const [boughtAmount, setBoughtAmount] = useState("");
+  const [addBoughtStock, setAddBoughtStock] = useState(true);
+  const [purchaseError, setPurchaseError] = useState("");
   const { profile: p, meals, recipes, pantry, prices, lists, purchases } = data;
   const weeklyLimit = budgetFor(p, data.budgets, "weekly", week);
   const generated = shoppingNeeds(meals, recipes, pantry, week);
   const stored = lists.filter((x) => x.week === week);
   const active = stored.length ? stored : generated;
   const priceFor = (x: ListItem) => {
-    const price = prices.find((v) => v.name === x.name && v.unit === x.unit);
-    return price ? (price.price * x.qty) / price.qty : 0;
+    const price = prices.find(
+      (v) =>
+        v.name.toLowerCase() === x.name.toLowerCase() &&
+        quantityInUnit(v.qty, v.unit, x.unit) !== null,
+    );
+    const packageQty = price && quantityInUnit(price.qty, price.unit, x.unit);
+    return price && packageQty ? (price.price * x.qty) / packageQty : 0;
   };
   const estimate = active.reduce((s, x) => s + priceFor(x), 0);
   const actual = purchases
     .filter((x) => x.listWeek === week)
     .reduce((s, x) => s + x.amount, 0);
   const missing = active.filter(
-    (x) => !prices.find((v) => v.name === x.name && v.unit === x.unit),
+    (x) =>
+      !prices.find(
+        (v) =>
+          v.name.toLowerCase() === x.name.toLowerCase() &&
+          quantityInUnit(v.qty, v.unit, x.unit) !== null,
+      ),
   );
   const saveList = async () => {
     if (
@@ -3097,41 +3336,37 @@ function Shop({ data }: { data: Data }) {
   const record = async (item: ListItem) => {
     if (item.checked) {
       const matched = purchases.filter((x) => x.listItemId === item.id);
-      if (!confirm(`Remove purchased status for ${item.name}?`)) return;
-      await db.transaction("rw", db.lists, db.purchases, async () => {
-        await db.lists.update(item.id, {
-          checked: false,
-          actualCost: 0,
-          actualQty: 0,
-        });
-        for (const x of matched) await db.purchases.delete(x.id);
-      });
+      if (
+        !confirm(
+          `Remove this purchase of ${item.name}? Its remaining pantry stock will also be removed.`,
+        )
+      )
+        return;
+      await db.transaction(
+        "rw",
+        db.lists,
+        db.purchases,
+        db.pantry,
+        async () => {
+          await db.lists.update(item.id, {
+            checked: false,
+            actualCost: 0,
+            actualQty: 0,
+          });
+          for (const x of matched) {
+            if (x.pantryId) await db.pantry.delete(x.pantryId);
+            await db.purchases.delete(x.id);
+          }
+        },
+      );
       return;
     }
-    const entered = prompt(
-      `Actual amount spent on ${item.name} (${p.currency})`,
-      String(item.actualCost || priceFor(item) || ""),
-    );
-    if (entered === null || entered.trim() === "") return;
-    const amount = Number(entered);
-    if (!Number.isFinite(amount) || amount < 0) return;
-    await ensureList();
-    await db.lists.update(item.id, {
-      checked: true,
-      actualCost: amount,
-      actualQty: item.qty,
-    });
-    await db.purchases.add({
-      id: uid(),
-      date: today(),
-      name: item.name,
-      qty: item.qty,
-      unit: item.unit,
-      amount,
-      checked: true,
-      listWeek: week,
-      listItemId: item.id,
-    });
+    setBuying(item);
+    setBoughtQty(item.qty);
+    setBoughtUnit(item.unit);
+    setBoughtAmount("");
+    setAddBoughtStock(true);
+    setPurchaseError("");
   };
   return (
     <>
@@ -3230,14 +3465,19 @@ function Shop({ data }: { data: Data }) {
                       <b>{item.name}</b>
                       <span>
                         {Math.round(item.qty * 100) / 100} {item.unit}
+                        {item.checked && item.actualQty > 0
+                          ? ` · bought ${item.actualQty} ${purchases.find((x) => x.listItemId === item.id)?.unit || item.unit}`
+                          : ""}
                       </span>
                     </div>
                     <span className="item-price">
                       {prices.find(
-                        (x) => x.name === item.name && x.unit === item.unit,
+                        (x) =>
+                          x.name.toLowerCase() === item.name.toLowerCase() &&
+                          quantityInUnit(x.qty, x.unit, item.unit) !== null,
                       )
                         ? money(priceFor(item), p)
-                        : "Price needed"}
+                        : "Price not entered"}
                     </span>
                     {stored.length > 0 && (
                       <button
@@ -3290,7 +3530,7 @@ function Shop({ data }: { data: Data }) {
               .map((x) => (
                 <div className="history-line" key={x.id}>
                   <span>
-                    {x.name} · {fmt(x.date)}
+                    {x.name} · {x.qty} {x.unit} · {fmt(x.date)}
                   </span>
                   <b>{money(x.amount, p)}</b>
                   <button
@@ -3302,7 +3542,9 @@ function Shop({ data }: { data: Data }) {
                         "rw",
                         db.purchases,
                         db.lists,
+                        db.pantry,
                         async () => {
+                          if (x.pantryId) await db.pantry.delete(x.pantryId);
                           await db.purchases.delete(x.id);
                           if (x.listItemId)
                             await db.lists.update(x.listItemId, {
@@ -3320,6 +3562,115 @@ function Shop({ data }: { data: Data }) {
               ))}
           </Card>
         </section>
+      )}
+      {buying && (
+        <Modal
+          title={`Record purchase · ${buying.name}`}
+          onClose={() => setBuying(null)}
+        >
+          <form
+            className="modal-form"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              try {
+                await ensureList();
+                await recordGroceryPurchase({
+                  name: buying.name,
+                  qty: boughtQty,
+                  unit: boughtUnit,
+                  amount: Number(boughtAmount),
+                  listWeek: week,
+                  listItemId: buying.id,
+                  addToPantry: addBoughtStock,
+                });
+                setBuying(null);
+              } catch (error) {
+                setPurchaseError(
+                  error instanceof Error
+                    ? error.message
+                    : "Purchase could not be saved.",
+                );
+              }
+            }}
+          >
+            <p className="muted">
+              Your list needs {Math.round(buying.qty * 100) / 100} {buying.unit}
+              . Enter what you actually bought, even if it is more than this
+              week's need.
+            </p>
+            <div className="form-grid">
+              <label>
+                Quantity bought
+                <input
+                  type="number"
+                  min="0.001"
+                  step="any"
+                  required
+                  value={boughtQty}
+                  onChange={(event) => setBoughtQty(Number(event.target.value))}
+                />
+              </label>
+              <label>
+                Unit
+                <select
+                  value={boughtUnit}
+                  onChange={(event) => setBoughtUnit(event.target.value)}
+                >
+                  {[
+                    ...new Set([
+                      buying.unit,
+                      "g",
+                      "kg",
+                      "ml",
+                      "l",
+                      "pcs",
+                      "slices",
+                    ]),
+                  ].map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label>
+              Total paid ({p.currency})
+              <input
+                type="number"
+                min="0.01"
+                step="any"
+                required
+                value={boughtAmount}
+                onChange={(event) => setBoughtAmount(event.target.value)}
+              />
+            </label>
+            <label className="check-label">
+              <input
+                type="checkbox"
+                checked={addBoughtStock}
+                onChange={(event) => setAddBoughtStock(event.target.checked)}
+              />
+              Add what I bought to my pantry
+            </label>
+            <p className="hint">
+              The full payment counts on today's budget. Meals use only their
+              ingredient portion for estimates. Stock is reduced when you mark a
+              meal eaten.
+            </p>
+            {purchaseError && (
+              <p className="error" role="alert">
+                {purchaseError}
+              </p>
+            )}
+            <div className="modal-actions">
+              <Button variant="secondary" onClick={() => setBuying(null)}>
+                Cancel
+              </Button>
+              <Button type="submit">Save purchase</Button>
+            </div>
+          </form>
+        </Modal>
       )}
       {custom && (
         <Modal title="Add shopping item" onClose={() => setCustom(false)}>
@@ -3737,7 +4088,7 @@ function Recipes({ data }: { data: Data }) {
                   </span>
                   <span>
                     {cost.missing.length
-                      ? "Price needed"
+                      ? "Price not entered"
                       : money(cost.total, p)}
                   </span>
                 </div>
@@ -4065,10 +4416,16 @@ function Recipes({ data }: { data: Data }) {
   );
 }
 function PantryPage({ data }: { data: Data }) {
-  const { pantry, prices, profile: p } = data;
+  const { pantry, prices, profile: p, ingredients } = data;
   const [tab, setTab] = useState<"stock" | "prices">("stock");
   const [item, setItem] = useState<Partial<Pantry> | null>(null);
   const [price, setPrice] = useState<Partial<Price> | null>(null);
+  const [priceQuery, setPriceQuery] = useState("");
+  const unpricedPackItems = ingredients.filter(
+    (item) =>
+      item.fromPersonalPack &&
+      !prices.some((price) => price.name === item.name),
+  );
   return (
     <>
       <Header
@@ -4145,7 +4502,7 @@ function PantryPage({ data }: { data: Data }) {
             body="Add ingredients you have so they are subtracted from shopping needs."
           />
         )
-      ) : prices.length ? (
+      ) : prices.length || unpricedPackItems.length ? (
         prices
           .sort((a, b) => a.name.localeCompare(b.name))
           .map((x) => (
@@ -4183,6 +4540,51 @@ function PantryPage({ data }: { data: Data }) {
           heading="Add prices you know"
           body="Meal estimates stay incomplete until matching ingredient prices are entered."
         />
+      )}
+      {tab === "prices" && unpricedPackItems.length > 0 && (
+        <section className="shopping-group">
+          <div className="section-heading">
+            <div>
+              <h2>Prices to enter from your meal pack</h2>
+              <p className="muted">
+                {unpricedPackItems.length} ingredients have no saved price. They
+                are not treated as free.
+              </p>
+            </div>
+          </div>
+          <label>
+            Search ingredients
+            <input
+              value={priceQuery}
+              onChange={(event) => setPriceQuery(event.target.value)}
+              placeholder="e.g. beef or rice"
+            />
+          </label>
+          {unpricedPackItems
+            .filter((item) =>
+              item.name.includes(priceQuery.trim().toLowerCase()),
+            )
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((item) => (
+              <Card key={item.name} className="simple-row">
+                <span className="stat-icon peach">
+                  <Wallet size={18} />
+                </span>
+                <div>
+                  <b>{item.name}</b>
+                  <p>Price not entered</p>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    setPrice({ name: item.name, qty: 1, unit: item.unit })
+                  }
+                >
+                  Enter price
+                </Button>
+              </Card>
+            ))}
+        </section>
       )}
       {item && (
         <Modal title="Pantry stock" onClose={() => setItem(null)}>
@@ -4258,7 +4660,9 @@ function PantryPage({ data }: { data: Data }) {
               This is a leftover
             </label>
             <p className="hint">
-              Expired stock is excluded from future shopping deductions.
+              Expired stock is excluded from future shopping deductions. Enter
+              cooked leftovers as their own pantry item with the amount you
+              actually saved.
             </p>
             <Button type="submit">Save stock</Button>
           </form>
@@ -4542,13 +4946,17 @@ function BudgetPage({ data }: { data: Data }) {
   const projected = (records: PlannedMeal[]) =>
     records.reduce((sum, m) => {
       const r = recipes.find((x) => x.id === m.recipeId);
-      return sum + (r ? mealCost(r, prices, m.portion).total : 0);
+      return (
+        sum + (r ? mealCost(effectiveRecipe(m, r), prices, m.portion).total : 0)
+      );
     }, 0);
   const incomplete = (records: PlannedMeal[]) => [
     ...new Set(
       records.flatMap((m) => {
         const r = recipes.find((x) => x.id === m.recipeId);
-        return r ? mealCost(r, prices, m.portion).missing : [];
+        return r
+          ? mealCost(effectiveRecipe(m, r), prices, m.portion).missing
+          : [];
       }),
     ),
   ];
@@ -5288,7 +5696,7 @@ function Backup({ data }: { data: Data }) {
     setError("");
     try {
       const raw: unknown = JSON.parse(await file.text());
-      if (isPersonalMealPlanFile(raw)) {
+      if (isPersonalPackFile(raw) || isPersonalMealPlanFile(raw)) {
         navigate("/plan", { state: { planFile: raw } });
         return;
       }

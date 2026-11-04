@@ -7,6 +7,8 @@ export type Ingredient = {
   qty: number;
   unit: string;
   category: string;
+  quantityBasis?: string;
+  sourceIngredientId?: string;
 };
 export type Recipe = {
   id: string;
@@ -24,8 +26,10 @@ export type Recipe = {
   dietaryTags?: string[];
   allergens?: string[];
   substitutions?: string[];
+  keywords?: string[];
   image?: string;
   source?: "builtin" | "custom" | "imported";
+  importFingerprint?: string;
 };
 export type PlannedMeal = {
   id: string;
@@ -40,6 +44,7 @@ export type PlannedMeal = {
   loggedCost?: number;
   addedIngredients?: Ingredient[];
   removedIngredientIndexes?: number[];
+  pantryUsed?: { pantryId: string; name: string; unit: string; qty: number }[];
 };
 export type Profile = {
   id: "me";
@@ -79,6 +84,7 @@ export type Pantry = {
   unit: string;
   expiresOn?: string;
   leftover?: boolean;
+  sourcePurchaseId?: string;
 };
 export type Purchase = {
   id: string;
@@ -90,6 +96,7 @@ export type Purchase = {
   checked: boolean;
   listWeek: string;
   listItemId?: string;
+  pantryId?: string;
 };
 export type Weight = { id: string; date: string; kg: number; note: string };
 export type Habit = { id: string; date: string; key: string; value: number };
@@ -104,7 +111,13 @@ export type ListItem = {
   actualQty: number;
   actualCost: number;
 };
-export type IngredientInfo = { name: string; category: string; unit: string };
+export type IngredientInfo = {
+  name: string;
+  category: string;
+  unit: string;
+  fromPersonalPack?: boolean;
+  sourceIngredientId?: string;
+};
 export type BudgetOverride = {
   id: string;
   period: "daily" | "weekly";
@@ -149,8 +162,23 @@ export type PlanTemplate = {
   createdAt: string;
   description?: string;
   sourceId?: string;
+  sourceTimezone?: string;
+  sourceGeneratedOn?: string;
+  sourceImportMode?: string;
+  sourceProfileNotes?: { tea: string; medical: string };
+  importNotes?: string[];
   mealTimes?: Record<Slot, string>;
-  items: { day: number; slot: Slot; recipeId: string; portion: number }[];
+  items: {
+    day: number;
+    slot: Slot;
+    recipeId: string;
+    portion: number;
+    sourceEntryId?: string;
+  }[];
+  rotation?: {
+    anchorWeek: string;
+    weeks: PlanTemplate["items"][];
+  };
 };
 export const uid = () => crypto.randomUUID();
 export const today = () => format(new Date(), "yyyy-MM-dd");
@@ -402,7 +430,7 @@ export function weekFromTemplate(
   template: PlanTemplate,
   week: string,
 ): PlannedMeal[] {
-  return template.items.map((item) => ({
+  return templateItemsForWeek(template, week).map((item) => ({
     id: uid(),
     date: format(addDays(new Date(`${week}T12:00:00`), item.day), "yyyy-MM-dd"),
     slot: item.slot,
@@ -410,6 +438,21 @@ export function weekFromTemplate(
     portion: item.portion,
     status: "planned" as const,
   }));
+}
+export function templateItemsForWeek(template: PlanTemplate, week: string) {
+  if (!template.rotation?.weeks.length) return template.items;
+  const dayNumber = (value: string) => {
+    const [year, month, day] = value.split("-").map(Number);
+    return Date.UTC(year, month - 1, day) / 86_400_000;
+  };
+  const offset = Math.round(
+    (dayNumber(weekOf(week)) - dayNumber(template.rotation.anchorWeek)) / 7,
+  );
+  const index =
+    ((offset % template.rotation.weeks.length) +
+      template.rotation.weeks.length) %
+    template.rotation.weeks.length;
+  return template.rotation.weeks[index];
 }
 export const makeSeedWeek = (week: string): PlannedMeal[] => [
   ...seedPlan.map((recipeId, n) => ({
@@ -678,24 +721,27 @@ export function initialize() {
     if (await db.profiles.count()) await ensureUpcomingPlan();
   })());
 }
-export async function ensureUpcomingPlan(date = today()) {
+export async function ensureUpcomingPlan(
+  date = today(),
+  database: NourishDB = db,
+) {
   const week = weekOf(date);
   const next = format(addDays(new Date(`${week}T12:00:00`), 7), "yyyy-MM-dd");
-  await db.transaction(
+  await database.transaction(
     "rw",
-    db.meals,
-    db.planWeeks,
-    db.templates,
-    db.profiles,
+    database.meals,
+    database.planWeeks,
+    database.templates,
+    database.profiles,
     async () => {
-      const profile = await db.profiles.get("me");
+      const profile = await database.profiles.get("me");
       const active = profile?.activeTemplateId
-        ? await db.templates.get(profile.activeTemplateId)
+        ? await database.templates.get(profile.activeTemplateId)
         : undefined;
       const template = active || builtInTemplates[0];
       for (const w of [week, next]) {
-        if (await db.planWeeks.get(w)) continue;
-        const already = await db.meals
+        if (await database.planWeeks.get(w)) continue;
+        const already = await database.meals
           .where("date")
           .between(
             w,
@@ -704,8 +750,9 @@ export async function ensureUpcomingPlan(date = today()) {
             true,
           )
           .count();
-        if (!already) await db.meals.bulkAdd(weekFromTemplate(template, w));
-        await db.planWeeks.put({
+        if (!already)
+          await database.meals.bulkAdd(weekFromTemplate(template, w));
+        await database.planWeeks.put({
           week: w,
           templateId: already ? "existing" : template.id,
         });
@@ -748,9 +795,10 @@ export async function setActiveTemplate(
         .where("date")
         .between(nextWeek, weekEnd, true, true)
         .toArray();
+      const oldItems = templateItemsForWeek(oldTemplate, nextWeek);
       const matches =
-        weekMeals.length === oldTemplate.items.length &&
-        oldTemplate.items.every((item) => {
+        weekMeals.length === oldItems.length &&
+        oldItems.every((item) => {
           const date = format(
             addDays(new Date(`${nextWeek}T12:00:00`), item.day),
             "yyyy-MM-dd",
@@ -785,6 +833,23 @@ export function money(v: number, p: Profile) {
     return `${p.currency} ${Math.round(v)}`;
   }
 }
+export function quantityInUnit(qty: number, from: string, to: string) {
+  const units: Record<string, [string, number]> = {
+    g: ["mass", 1],
+    kg: ["mass", 1000],
+    ml: ["volume", 1],
+    l: ["volume", 1000],
+    pcs: ["count", 1],
+    piece: ["count", 1],
+    pieces: ["count", 1],
+  };
+  const source = from.trim().toLowerCase();
+  const target = to.trim().toLowerCase();
+  if (source === target) return qty;
+  if (!units[source] || !units[target] || units[source][0] !== units[target][0])
+    return null;
+  return (qty * units[source][1]) / units[target][1];
+}
 export function mealCost(recipe: Recipe, prices: Price[], portion = 1) {
   let total = 0;
   const missing: string[] = [];
@@ -792,13 +857,15 @@ export function mealCost(recipe: Recipe, prices: Price[], portion = 1) {
     const price = prices.find(
       (p) =>
         p.name.toLowerCase() === item.name.toLowerCase() &&
-        p.unit === item.unit,
+        quantityInUnit(p.qty, p.unit, item.unit) !== null,
     );
-    if (!price || !price.qty || !Number.isFinite(price.price))
+    const packageQty =
+      price && quantityInUnit(price.qty, price.unit, item.unit);
+    if (!price || !packageQty || !Number.isFinite(price.price))
       missing.push(item.name);
     else
       total +=
-        ((price.price / price.qty) * item.qty * portion) / recipe.servings;
+        ((price.price / packageQty) * item.qty * portion) / recipe.servings;
   }
   return { total, missing };
 }
@@ -859,7 +926,7 @@ export function shoppingNeeds(
 ) {
   const needed = new Map<string, ListItem>();
   for (const meal of meals.filter(
-    (m) => weekOf(m.date) === week && m.status !== "skipped",
+    (m) => weekOf(m.date) === week && m.status === "planned",
   )) {
     const recipe = recipes.find((r) => r.id === meal.recipeId);
     if (!recipe) continue;
@@ -870,7 +937,7 @@ export function shoppingNeeds(
       if (prev) prev.qty += (ing.qty * meal.portion) / effective.servings;
       else
         needed.set(key, {
-          id: uid(),
+          id: `needed:${week}:${encodeURIComponent(key)}`,
           week,
           name: ing.name,
           unit: ing.unit,
@@ -893,52 +960,189 @@ export function shoppingNeeds(
         pantry
           .filter(
             (p) =>
-              p.name === item.name &&
-              p.unit === item.unit &&
+              p.name.toLowerCase() === item.name.toLowerCase() &&
+              quantityInUnit(p.qty, p.unit, item.unit) !== null &&
               (!p.expiresOn || p.expiresOn >= weekEnd),
           )
-          .reduce((s, p) => s + p.qty, 0),
+          .reduce(
+            (s, p) => s + (quantityInUnit(p.qty, p.unit, item.unit) || 0),
+            0,
+          ),
     );
   }
   return [...needed.values()].filter((i) => i.qty > 0);
 }
 export const slots: Slot[] = ["breakfast", "lunch", "dinner", "snack"];
 
+export async function recordGroceryPurchase(
+  input: {
+    name: string;
+    qty: number;
+    unit: string;
+    amount: number;
+    date?: string;
+    listWeek?: string;
+    listItemId?: string;
+    addToPantry?: boolean;
+    updatePrice?: boolean;
+  },
+  database: NourishDB = db,
+) {
+  const name = input.name.trim().toLowerCase();
+  const unit = input.unit.trim().toLowerCase();
+  if (
+    !name ||
+    !unit ||
+    !Number.isFinite(input.qty) ||
+    input.qty <= 0 ||
+    !Number.isFinite(input.amount) ||
+    input.amount <= 0
+  )
+    throw new Error("Enter a valid item, quantity and amount.");
+  const date = input.date || today();
+  const id = uid();
+  const pantryId = input.addToPantry === false ? undefined : `purchase:${id}`;
+  const purchase: Purchase = {
+    id,
+    date,
+    name,
+    qty: input.qty,
+    unit,
+    amount: input.amount,
+    checked: true,
+    listWeek: input.listWeek || weekOf(date),
+    listItemId: input.listItemId,
+    pantryId,
+  };
+  await database.transaction(
+    "rw",
+    database.purchases,
+    database.pantry,
+    database.prices,
+    database.lists,
+    async () => {
+      if (
+        input.listItemId &&
+        (await database.lists.get(input.listItemId))?.checked
+      )
+        throw new Error("This item is already marked as purchased.");
+      await database.purchases.add(purchase);
+      if (pantryId)
+        await database.pantry.add({
+          id: pantryId,
+          name,
+          qty: input.qty,
+          unit,
+          sourcePurchaseId: id,
+        });
+      if (input.updatePrice !== false)
+        await database.prices.put({
+          name,
+          qty: input.qty,
+          unit,
+          price: input.amount,
+          updatedAt: date,
+        });
+      if (input.listItemId)
+        await database.lists.update(input.listItemId, {
+          checked: true,
+          actualCost: input.amount,
+          actualQty: input.qty,
+        });
+    },
+  );
+  return purchase;
+}
+
 export async function setMealStatus(
   meal: PlannedMeal,
   status: PlannedMeal["status"],
   recipes: Recipe[],
   prices: Price[],
+  database: NourishDB = db,
 ) {
   const recipe = recipes.find((r) => r.id === meal.recipeId);
-  await db.transaction("rw", db.meals, db.mealRecords, async () => {
-    if (status === "eaten" && recipe) {
-      const snapshot = structuredClone(effectiveRecipe(meal, recipe));
-      const loggedAt = new Date().toISOString();
-      const estimate = mealCost(snapshot, prices, meal.portion);
-      const estimatedCost = estimate.missing.length
-        ? undefined
-        : estimate.total;
-      await db.mealRecords.put({
-        id: meal.id,
-        date: meal.date,
-        slot: meal.slot,
-        recipe: snapshot,
-        portion: meal.portion,
-        loggedAt,
-        estimatedCost,
-      });
-      await db.meals.update(meal.id, {
-        status,
-        eatenAt: loggedAt,
-        snapshot,
-        loggedCost: estimatedCost,
-      });
-    } else {
-      if (meal.status === "eaten") await db.mealRecords.delete(meal.id);
-      await db.meals.update(meal.id, { status, eatenAt: undefined });
-    }
-  });
+  await database.transaction(
+    "rw",
+    database.meals,
+    database.mealRecords,
+    database.pantry,
+    async () => {
+      const current = await database.meals.get(meal.id);
+      if (!current) return;
+      if (current.status === "eaten" && status === "eaten") return;
+      for (const used of current.pantryUsed || []) {
+        const stock = await database.pantry.get(used.pantryId);
+        if (stock)
+          await database.pantry.update(stock.id, { qty: stock.qty + used.qty });
+      }
+      if (status === "eaten" && recipe) {
+        const snapshot = structuredClone(effectiveRecipe(meal, recipe));
+        const loggedAt = new Date().toISOString();
+        const estimate = mealCost(snapshot, prices, meal.portion);
+        const estimatedCost = estimate.missing.length
+          ? undefined
+          : estimate.total;
+        const pantryUsed: NonNullable<PlannedMeal["pantryUsed"]> = [];
+        const stock = await database.pantry.toArray();
+        for (const ingredient of snapshot.ingredients) {
+          let needed = (ingredient.qty * meal.portion) / snapshot.servings;
+          for (const item of stock
+            .filter(
+              (p) =>
+                p.name.toLowerCase() === ingredient.name.toLowerCase() &&
+                (!p.expiresOn || p.expiresOn >= meal.date) &&
+                quantityInUnit(p.qty, p.unit, ingredient.unit) !== null,
+            )
+            .sort((a, b) =>
+              (a.expiresOn || "9999").localeCompare(b.expiresOn || "9999"),
+            )) {
+            if (needed <= 0) break;
+            const available =
+              quantityInUnit(item.qty, item.unit, ingredient.unit) || 0;
+            const taken = Math.min(needed, available);
+            if (taken <= 0) continue;
+            const stockQty = quantityInUnit(taken, ingredient.unit, item.unit)!;
+            item.qty = Math.max(0, item.qty - stockQty);
+            needed -= taken;
+            pantryUsed.push({
+              pantryId: item.id,
+              name: item.name,
+              unit: item.unit,
+              qty: stockQty,
+            });
+            await database.pantry.update(item.id, { qty: item.qty });
+          }
+        }
+        await database.mealRecords.put({
+          id: meal.id,
+          date: meal.date,
+          slot: meal.slot,
+          recipe: snapshot,
+          portion: meal.portion,
+          loggedAt,
+          estimatedCost,
+        });
+        await database.meals.update(meal.id, {
+          status,
+          eatenAt: loggedAt,
+          snapshot,
+          loggedCost: estimatedCost,
+          pantryUsed,
+        });
+      } else {
+        if (current.pantryUsed?.length || current.status === "eaten")
+          await database.mealRecords.delete(meal.id);
+        await database.meals.update(meal.id, {
+          status,
+          eatenAt: undefined,
+          pantryUsed: [],
+          snapshot: undefined,
+          loggedCost: undefined,
+        });
+      }
+    },
+  );
 }
 export function affordableAlternatives(
   current: Recipe,

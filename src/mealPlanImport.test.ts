@@ -161,7 +161,7 @@ describe("personal weekly plan import", () => {
       [{ id: "stock", name: "rice", qty: 100, unit: "g" }],
       week,
     );
-    expect(needs.find((x) => x.name === "rice")?.qty).toBe(2800);
+    expect(needs.find((x) => x.name === "rice")?.qty).toBe(2700);
     expect(needs.find((x) => x.name === "milk")?.qty).toBe(500);
     expect(mealCost(recipes[0], [], 1).missing).toContain("rice");
     await importPersonalMealPlan(preview, true, database, date);

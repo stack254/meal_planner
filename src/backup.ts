@@ -13,6 +13,8 @@ const ingredient = z.object({
   qty: z.number().nonnegative(),
   unit: id,
   category: id,
+  quantityBasis: z.string().optional(),
+  sourceIngredientId: z.string().optional(),
 });
 const profile = z.object({
   id: z.literal("me"),
@@ -56,8 +58,10 @@ const recipe = z.object({
   dietaryTags: z.array(z.string()).optional(),
   allergens: z.array(z.string()).optional(),
   substitutions: z.array(z.string()).optional(),
+  keywords: z.array(z.string()).optional(),
   image: z.string().optional(),
   source: z.enum(["builtin", "custom", "imported"]).optional(),
+  importFingerprint: z.string().optional(),
 });
 const meal = z.object({
   id,
@@ -72,6 +76,16 @@ const meal = z.object({
   loggedCost: z.number().nonnegative().optional(),
   addedIngredients: z.array(ingredient).optional(),
   removedIngredientIndexes: z.array(z.number().int().nonnegative()).optional(),
+  pantryUsed: z
+    .array(
+      z.object({
+        pantryId: id,
+        name: id,
+        unit: id,
+        qty: z.number().nonnegative(),
+      }),
+    )
+    .optional(),
 });
 const price = z.object({
   name: id,
@@ -87,6 +101,7 @@ const pantry = z.object({
   unit: id,
   expiresOn: date.optional(),
   leftover: z.boolean().optional(),
+  sourcePurchaseId: z.string().optional(),
 });
 const purchase = z.object({
   id,
@@ -98,6 +113,7 @@ const purchase = z.object({
   checked: z.boolean(),
   listWeek: date,
   listItemId: z.string().optional(),
+  pantryId: z.string().optional(),
 });
 const weight = z.object({
   id,
@@ -137,25 +153,44 @@ const mealRecord = z.object({
   loggedAt: z.string(),
   estimatedCost: z.number().nonnegative().optional(),
 });
+const templateItem = z.object({
+  day: z.number().int().min(0).max(6),
+  slot: z.enum(["breakfast", "lunch", "dinner", "snack"]),
+  recipeId: id,
+  portion: z.number().positive(),
+  sourceEntryId: z.string().optional(),
+});
 const template = z.object({
   id,
   name: id,
   createdAt: date,
   description: z.string().optional(),
   sourceId: z.string().optional(),
+  sourceTimezone: z.string().optional(),
+  sourceGeneratedOn: z.string().optional(),
+  sourceImportMode: z.string().optional(),
+  sourceProfileNotes: z
+    .object({ tea: z.string(), medical: z.string() })
+    .optional(),
+  importNotes: z.array(z.string()).optional(),
   mealTimes: z
     .record(z.enum(["breakfast", "lunch", "dinner", "snack"]), time)
     .optional(),
-  items: z.array(
-    z.object({
-      day: z.number().int().min(0).max(6),
-      slot: z.enum(["breakfast", "lunch", "dinner", "snack"]),
-      recipeId: id,
-      portion: z.number().positive(),
-    }),
-  ),
+  items: z.array(templateItem),
+  rotation: z
+    .object({
+      anchorWeek: date,
+      weeks: z.array(z.array(templateItem)).min(1),
+    })
+    .optional(),
 });
-const ingredientInfo = z.object({ name: id, category: id, unit: id });
+const ingredientInfo = z.object({
+  name: id,
+  category: id,
+  unit: id,
+  fromPersonalPack: z.boolean().optional(),
+  sourceIngredientId: z.string().optional(),
+});
 const budgetOverride = z.object({
   id,
   period: z.enum(["daily", "weekly"]),
