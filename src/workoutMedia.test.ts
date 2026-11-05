@@ -9,8 +9,13 @@ describe("workout media registry", () => {
     );
     for (const exercise of seedExercises) {
       const animation = animationForExercise(exercise.id);
-      expect(animation?.path).toBe(`/assets/workouts/${exercise.id}.gif`);
+      expect(animation?.path).toBe(
+        exercise.id === "incline_pushup"
+          ? "/assets/workouts/incline_pushup_photoreal_sprite.png"
+          : `/assets/workouts/${exercise.id}.gif`,
+      );
     }
+    expect(animationForExercise("incline_pushup")?.format).toBe("sprite");
     expect(animationForExercise("wall_pushup")).toBeUndefined();
   });
 });

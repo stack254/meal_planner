@@ -32,13 +32,12 @@ test("logs a beginner session and plays mapped exercise media offline", async ({
   await expect(page.locator(".exercise-player h3")).toHaveText(
     "Incline push-up",
   );
-  await expect(page.locator(".exercise-player img")).toHaveAttribute(
-    "src",
-    "/assets/workouts/incline_pushup.gif",
-  );
+  const sprite = page.locator(".exercise-player .workout-sprite");
+  await expect(sprite).toHaveCSS("animation-name", "incline-pushup-frames");
   await page.getByRole("button", { name: "Pause animation" }).click();
-  await expect(page.locator(".exercise-player img")).toHaveCount(0);
+  await expect(sprite).toHaveCSS("animation-name", "none");
   await page.getByRole("button", { name: "Play animation" }).click();
+  await expect(sprite).toHaveCSS("animation-name", "incline-pushup-frames");
   await page.getByLabel("Reps or duration completed").fill("6");
   await page.getByRole("button", { name: "Save set" }).click();
   await expect(page.getByText("1 of 2 suggested sets")).toBeVisible();
@@ -73,10 +72,13 @@ test("starts with animation paused when reduced motion is enabled", async ({
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/workouts");
-  await page.getByRole("button", { name: "Tue" }).click();
+  await page.getByRole("button", { name: "Mon" }).click();
   await page.getByRole("button", { name: "Start session" }).click();
   await page.getByRole("button", { name: "Begin exercises" }).click();
-  await expect(page.locator(".exercise-player img")).toHaveCount(0);
+  await expect(page.locator(".exercise-player .workout-sprite")).toHaveCSS(
+    "animation-name",
+    "none",
+  );
   await expect(
     page.getByRole("button", { name: "Play animation" }),
   ).toBeVisible();

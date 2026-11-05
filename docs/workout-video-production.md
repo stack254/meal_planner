@@ -6,7 +6,7 @@ Use `public/assets/workouts/wall_sit.gif` as the visual reference. Match the sam
 
 ## Deliverables
 
-Replace the seven schematic exercise clips below. Produce a short silent loop for each exercise, plus a still poster. Use the exercise ID as the filename. Prefer browser-ready MP4 (H.264) with a WebM version if practical. Keep the first and last poses similar for a smooth loop. Do not add text, speech, logos, weights, or extra equipment. Keep written instructions in the app.
+Replace the seven original schematic exercise clips below. Incline push-up now has a four-pose realistic sprite prototype in the app; it still needs motion and form review. Produce a short silent loop for each remaining exercise, plus a still poster. Use the exercise ID as the filename. Prefer browser-ready MP4 (H.264) with a WebM version if practical. Keep the first and last poses similar for a smooth loop. Do not add text, speech, logos, weights, or extra equipment. Keep written instructions in the app.
 
 | Exercise ID          | Movement to show                                                                                                      |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------- |

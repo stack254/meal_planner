@@ -563,7 +563,14 @@ function ExerciseInstructions({
     <div className="exercise-instructions">
       {animation && (
         <figure>
-          {playing ? (
+          {animation.format === "sprite" ? (
+            <div
+              className={`workout-sprite ${playing ? "playing" : ""}`}
+              style={{ backgroundImage: `url(${animation.path})` }}
+              role="img"
+              aria-label={`Visual prototype showing ${exercise.name} against a stable counter`}
+            />
+          ) : playing ? (
             <img
               src={animation.path}
               width="640"

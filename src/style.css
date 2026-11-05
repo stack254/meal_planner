@@ -1852,6 +1852,38 @@ body,
   object-fit: contain;
   border-radius: 12px;
 }
+.workout-sprite {
+  width: 100%;
+  aspect-ratio: 1;
+  background-size: 200% 200%;
+  background-position: left top;
+  background-repeat: no-repeat;
+  border-radius: 12px;
+}
+.workout-sprite.playing {
+  animation: incline-pushup-frames 1.8s steps(1, end) infinite;
+}
+@keyframes incline-pushup-frames {
+  0%,
+  19.99%,
+  100% {
+    background-position: left top;
+  }
+  20%,
+  39.99%,
+  80%,
+  99.99% {
+    background-position: right top;
+  }
+  40%,
+  59.99% {
+    background-position: left bottom;
+  }
+  60%,
+  79.99% {
+    background-position: right bottom;
+  }
+}
 .workout-animation-paused {
   display: grid;
   place-items: center;
