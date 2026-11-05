@@ -19,14 +19,15 @@ const empty = {
   preferences: [{ id: "me", theme: "system" }],
 };
 describe("backup validation", () => {
-  it("accepts a complete current backup", () => {
-    expect(
-      parseBackup({
-        schemaVersion: 4,
-        exportedAt: "2026-11-03T12:00:00.000Z",
-        data: empty,
-      }).data.profiles,
-    ).toHaveLength(1);
+  it("migrates a pre-workout backup with the starter plan", () => {
+    const migrated = parseBackup({
+      schemaVersion: 4,
+      exportedAt: "2026-11-03T12:00:00.000Z",
+      data: empty,
+    });
+    expect(migrated.data.profiles).toHaveLength(1);
+    expect(migrated.data.exercises).toHaveLength(16);
+    expect(migrated.data.workoutDays).toHaveLength(7);
   });
   it("preserves linked bulk stock and meal deductions in a backup", () => {
     const result = parseBackup({

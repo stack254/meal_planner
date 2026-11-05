@@ -1,0 +1,337 @@
+{
+  "schema": "nourish.personal.fitness.plan",
+  "version": 1,
+  "title": "My Strength Journey — No Equipment",
+  "description": "Personal beginner strength plan that complements weight-gain meals; three strength days plus recovery.",
+  "userDefaults": {
+    "weightKg": 52,
+    "heightCm": 166,
+    "firstWeightGoalKg": 55,
+    "longTermGoalKg": 65,
+    "trainingGoal": "build strength and muscle gradually",
+    "equipment": [],
+    "fitnessLevel": "beginner",
+    "note": "Recently reported unintended weight loss; seek medical assessment before vigorous training."
+  },
+  "settings": {
+    "repeat": "weekly",
+    "warmup": "3–5 minutes of gentle movement before strength sessions",
+    "cooldown": "2–3 minutes of gentle movement after sessions",
+    "progression": "Begin with comfortable sets. After two sessions of good technique, increase reps slightly within the range. Add a set only later if recovery and eating are adequate.",
+    "stopWarning": "Stop for chest pain, dizziness, faintness, or unusual breathlessness and seek medical advice.",
+    "nutritionReminder": "Keep eating regular meals and snacks; workouts should not replace meals."
+  },
+  "exerciseLibrary": [
+    {
+      "id": "squat",
+      "name": "Bodyweight squat",
+      "muscleGroup": "legs",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "8–12",
+      "restBetweenSets": "60–90 sec",
+      "instructions": "Stand with feet roughly shoulder-width apart. Bend hips and knees, lower comfortably while keeping feet grounded, then stand tall.",
+      "formCue": "Keep knees following toes; use a stable chair as a depth target if needed.",
+      "caution": "Avoid forcing depth or rounding painfully through your back.",
+      "media": {
+        "kind": "gif",
+        "path": "assets/workouts/nourish_bodyweight_squat.gif",
+        "status": "prototype_needs_form_review"
+      }
+    },
+    {
+      "id": "incline_pushup",
+      "name": "Incline push-up",
+      "muscleGroup": "upper",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "6–10",
+      "restBetweenSets": "60–90 sec",
+      "instructions": "Place hands on a stable counter or wall, keep body in a straight line, bend elbows to lower chest, then press away.",
+      "formCue": "Choose a higher surface to make it easier.",
+      "caution": "Do not use unstable furniture.",
+      "media": null
+    },
+    {
+      "id": "pushup",
+      "name": "Floor push-up",
+      "muscleGroup": "upper",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "5–8",
+      "restBetweenSets": "60–90 sec",
+      "instructions": "Hands slightly wider than shoulders; keep torso braced, lower under control and push back up.",
+      "formCue": "Use incline version when form breaks down.",
+      "caution": "Avoid sagging hips.",
+      "media": null
+    },
+    {
+      "id": "reverse_lunge",
+      "name": "Supported reverse lunge",
+      "muscleGroup": "legs",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "6 each leg",
+      "restBetweenSets": "60 sec",
+      "instructions": "Hold a stable support if needed, step backward, bend both knees comfortably, press through front foot to return.",
+      "formCue": "Keep front foot planted.",
+      "caution": "Avoid twisting the front knee.",
+      "media": null
+    },
+    {
+      "id": "glute_bridge",
+      "name": "Glute bridge",
+      "muscleGroup": "legs",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "10–15",
+      "restBetweenSets": "45–60 sec",
+      "instructions": "Lie on back with knees bent and feet planted. Tighten glutes to lift hips, pause, lower slowly.",
+      "formCue": "Keep ribs relaxed and avoid excessive lower-back arching.",
+      "caution": "Stop if back pain develops.",
+      "media": null
+    },
+    {
+      "id": "calf_raise",
+      "name": "Standing calf raise",
+      "muscleGroup": "legs",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "12–15",
+      "restBetweenSets": "45 sec",
+      "instructions": "Hold a stable support, lift heels slowly and lower with control.",
+      "formCue": "Balance evenly across forefeet.",
+      "caution": "Avoid bouncing.",
+      "media": null
+    },
+    {
+      "id": "plank",
+      "name": "Forearm plank",
+      "muscleGroup": "core",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "15–25 sec",
+      "restBetweenSets": "Place forearms under shoulders and brace body from head to heels; breathe steadily.",
+      "instructions": "Shorter holds with quality form beat longer holds.",
+      "formCue": "Avoid holding your breath.",
+      "caution": "",
+      "media": null
+    },
+    {
+      "id": "bird_dog",
+      "name": "Bird-dog",
+      "muscleGroup": "core",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "6–8 each side",
+      "restBetweenSets": "45 sec",
+      "instructions": "On hands and knees, slowly extend opposite arm and leg, pause and return; alternate sides.",
+      "formCue": "Keep hips level and movement controlled.",
+      "caution": "Avoid lifting leg excessively high.",
+      "media": null
+    },
+    {
+      "id": "dead_bug",
+      "name": "Dead bug",
+      "muscleGroup": "core",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "6–8 each side",
+      "restBetweenSets": "45 sec",
+      "instructions": "On back with arms up and knees bent, lower opposite arm and leg gradually while keeping trunk stable.",
+      "formCue": "Use a smaller range as needed.",
+      "caution": "Stop if back arches painfully.",
+      "media": null
+    },
+    {
+      "id": "reverse_snow_angel",
+      "name": "Prone reverse snow angel",
+      "muscleGroup": "upper",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "8–10",
+      "restBetweenSets": "45 sec",
+      "instructions": "Lie face down, lift hands slightly and sweep arms gently from sides toward overhead within a pain-free range.",
+      "formCue": "Keep neck neutral.",
+      "caution": "Do not force shoulder range.",
+      "media": null
+    },
+    {
+      "id": "side_plank_knees",
+      "name": "Bent-knee side plank",
+      "muscleGroup": "core",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "10–20 sec each side",
+      "restBetweenSets": "45 sec",
+      "instructions": "Lie on side supported by forearm and bent knees; lift hips and hold while breathing.",
+      "formCue": "Elbow under shoulder.",
+      "caution": "Stop if shoulder pain.",
+      "media": null
+    },
+    {
+      "id": "wall_sit",
+      "name": "Wall sit",
+      "muscleGroup": "legs",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 2,
+      "defaultRepsOrDuration": "15–25 sec",
+      "restBetweenSets": "60 sec",
+      "instructions": "Lean against a wall and slide into a comfortable partial squat, then stand.",
+      "formCue": "Choose a shallow knee angle at first.",
+      "caution": "Avoid painful knee depth.",
+      "media": null
+    },
+    {
+      "id": "cat_cow",
+      "name": "Cat-cow mobility",
+      "muscleGroup": "mobility",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 1,
+      "defaultRepsOrDuration": "6–8 slow reps",
+      "restBetweenSets": "30 sec",
+      "instructions": "On hands and knees, gently alternate spinal rounding and extension, breathing normally.",
+      "formCue": "Move smoothly.",
+      "caution": "Do not push into pain.",
+      "media": null
+    },
+    {
+      "id": "hip_mobility",
+      "name": "Hip mobility flow",
+      "muscleGroup": "mobility",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 1,
+      "defaultRepsOrDuration": "3 min",
+      "restBetweenSets": "As needed",
+      "instructions": "Perform gentle standing hip circles and controlled leg swings with support.",
+      "formCue": "Use small controlled movement.",
+      "caution": "Avoid sudden bouncing.",
+      "media": null
+    },
+    {
+      "id": "shoulder_mobility",
+      "name": "Shoulder mobility flow",
+      "muscleGroup": "mobility",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 1,
+      "defaultRepsOrDuration": "3 min",
+      "restBetweenSets": "As needed",
+      "instructions": "Perform gentle shoulder rolls and controlled arm circles.",
+      "formCue": "Keep movement pain-free.",
+      "caution": "Avoid forceful end ranges.",
+      "media": null
+    },
+    {
+      "id": "walk",
+      "name": "Comfortable walk",
+      "muscleGroup": "recovery",
+      "equipment": "none",
+      "level": "beginner",
+      "defaultSets": 1,
+      "defaultRepsOrDuration": "10–20 min",
+      "restBetweenSets": "As needed",
+      "instructions": "Walk at a conversational pace, adjusting duration to energy level.",
+      "formCue": "Keep it easy on recovery days.",
+      "caution": "Stop for dizziness or unusual symptoms.",
+      "media": null
+    }
+  ],
+  "weeklySchedule": [
+    {
+      "day": "monday",
+      "title": "Upper body and core",
+      "type": "strength",
+      "exerciseIds": [
+        "incline_pushup",
+        "bird_dog",
+        "reverse_snow_angel",
+        "plank"
+      ],
+      "optional": false
+    },
+    {
+      "day": "tuesday",
+      "title": "Legs and glutes",
+      "type": "strength",
+      "exerciseIds": ["squat", "reverse_lunge", "glute_bridge", "calf_raise"],
+      "optional": false
+    },
+    {
+      "day": "wednesday",
+      "title": "Active recovery",
+      "type": "recovery",
+      "exerciseIds": ["walk", "cat_cow"],
+      "optional": true
+    },
+    {
+      "day": "thursday",
+      "title": "Full-body strength",
+      "type": "strength",
+      "exerciseIds": [
+        "incline_pushup",
+        "squat",
+        "glute_bridge",
+        "dead_bug",
+        "reverse_snow_angel"
+      ],
+      "optional": false
+    },
+    {
+      "day": "friday",
+      "title": "Mobility and gentle movement",
+      "type": "mobility",
+      "exerciseIds": ["hip_mobility", "shoulder_mobility", "cat_cow"],
+      "optional": true
+    },
+    {
+      "day": "saturday",
+      "title": "Optional football or walk",
+      "type": "optional",
+      "exerciseIds": ["walk"],
+      "optional": true
+    },
+    {
+      "day": "sunday",
+      "title": "Rest day",
+      "type": "rest",
+      "exerciseIds": [],
+      "optional": false
+    }
+  ],
+  "mediaCoverage": {
+    "included": ["squat"],
+    "missing": [
+      "incline_pushup",
+      "pushup",
+      "reverse_lunge",
+      "glute_bridge",
+      "calf_raise",
+      "plank",
+      "bird_dog",
+      "dead_bug",
+      "reverse_snow_angel",
+      "side_plank_knees",
+      "wall_sit",
+      "cat_cow",
+      "hip_mobility",
+      "shoulder_mobility",
+      "walk"
+    ],
+    "rule": "Never show squat GIF for another exercise. Display accurate written instructions until each specific exercise media asset is created and reviewed."
+  }
+}

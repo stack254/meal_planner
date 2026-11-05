@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { seedExercises, seedWorkoutDays } from "./workouts";
 const id = z.string().min(1);
 const date = z
   .string()
@@ -202,8 +203,48 @@ const appearancePreference = z.object({
   id: z.literal("me"),
   theme: z.enum(["light", "dark", "system"]),
 });
+const exercise = z.object({
+  id,
+  name: id,
+  muscleGroup: id,
+  instructions: id,
+  formCue: z.string(),
+  caution: z.string(),
+  defaultSets: z.number().int().positive(),
+  defaultRepsOrDuration: id,
+  restSeconds: z.number().nonnegative(),
+  mediaPath: z.string().optional(),
+});
+const workoutDay = z.object({
+  id,
+  day: z.number().int().min(0).max(6),
+  title: id,
+  type: z.enum(["strength", "recovery", "mobility", "optional", "rest"]),
+  exerciseIds: z.array(id),
+  optional: z.boolean(),
+});
+const workoutSession = z.object({
+  id,
+  date,
+  dayId: id,
+  title: id,
+  exerciseIds: z.array(id),
+  sets: z.array(
+    z.object({ exerciseId: id, reps: id, completedAt: z.string() }),
+  ),
+  currentIndex: z.number().int(),
+  status: z.enum(["active", "finished", "stopped"]),
+  startedAt: z.string(),
+  endedAt: z.string().optional(),
+  difficulty: z.enum(["easy", "moderate", "hard"]),
+  note: z.string(),
+  restSeconds: z.number().nonnegative(),
+  restUntil: z.number().optional(),
+  restRemaining: z.number().optional(),
+  paused: z.boolean(),
+});
 export const backupSchema = z.object({
-  schemaVersion: z.literal(5),
+  schemaVersion: z.literal(6),
   exportedAt: z.string().datetime(),
   data: z.object({
     profiles: z.array(profile),
@@ -222,6 +263,9 @@ export const backupSchema = z.object({
     budgets: z.array(budgetOverride),
     preferences: z.array(appearancePreference),
     planWeeks: z.array(z.object({ week: date, templateId: id })),
+    exercises: z.array(exercise),
+    workoutDays: z.array(workoutDay),
+    workoutSessions: z.array(workoutSession),
   }),
 });
 
@@ -318,6 +362,23 @@ export function parseBackup(raw: unknown) {
         },
       };
     }
+  }
+  if (
+    candidate &&
+    typeof candidate === "object" &&
+    (candidate as { schemaVersion?: unknown }).schemaVersion === 5
+  ) {
+    const old = candidate as { data: Record<string, unknown> };
+    candidate = {
+      ...candidate,
+      schemaVersion: 6,
+      data: {
+        ...old.data,
+        exercises: old.data.exercises || seedExercises,
+        workoutDays: old.data.workoutDays || seedWorkoutDays,
+        workoutSessions: old.data.workoutSessions || [],
+      },
+    };
   }
   const parsed = backupSchema.safeParse(candidate);
   if (!parsed.success)

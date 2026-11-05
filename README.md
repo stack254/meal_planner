@@ -56,9 +56,13 @@ Open the production build on localhost or an HTTPS origin. When Chrome offers in
 
 On iPhone, open Nourish in Safari, use **Share → Add to Home Screen**, enable **Open as Web App** if offered, then tap **Add**. iOS does not support the browser install prompt button. The manifest includes normal and maskable icons and an Apple touch icon. After the app assets have loaded once, recipes, planning, shopping and weight logs work offline. App updates wait for you to choose **Reload now**. Reminders and countdowns work while Nourish is open; closed-app background notifications are not guaranteed.
 
+## Workouts
+
+The **Workouts** tab opens a repeating seven-day beginner plan. Monday, Tuesday and Thursday are strength days; Wednesday, Friday and Saturday offer easy or optional movement; Sunday is rest. The plan and 16 exercises are added once to local IndexedDB. You can edit a day's exercises, suggested sets and reps, and activity type without resetting your history. The session player saves each completed set, its reps or duration, rest timer, difficulty and note; **Stop and save** retains progress from a shorter session. An active session resumes after reload. Each exercise shows its own bundled GIF with a pause control and written instructions. Nine clips have the realistic room style; seven are schematic pending replacement. The GIFs are visual prototypes, not reviewed form demonstrations. Reduced motion starts with animation paused. No workout changes meal targets. See [the production brief](docs/workout-video-production.md) for the planned visual improvements.
+
 ## Backup and restore
 
-Go to **More → Data & backup** to export a complete JSON file. Import it on the same or another device, inspect the preview and choose **Merge by ID** or **Replace all data**. Replacement requires confirmation. Imports are validated and applied in one IndexedDB transaction. Backup schema version 5 accepts and migrates versions 1–4.
+Go to **More → Data & backup** to export a complete JSON file. Import it on the same or another device, inspect the preview and choose **Merge by ID** or **Replace all data**. Replacement requires confirmation. Imports are validated and applied in one IndexedDB transaction. Backup schema version 6 includes workouts and accepts and migrates versions 1–5.
 
 Clearing browser site data or uninstalling the PWA can remove local records. Export backups regularly and keep the file private; it contains personal wellness records.
 
@@ -68,6 +72,7 @@ Clearing browser site data or uninstalling the PWA can remove local records. Exp
 - `src/data.ts`: Dexie schema, migrations, seeding, planning, costing and shopping math.
 - `src/schedule.ts`: local-time meal scheduling and countdown calculations.
 - `src/backup.ts`: versioned JSON validation and migration.
+- `src/workouts.ts` and `src/workout-ui.tsx`: local workout plan, persistence and session player.
 - `src/mealPlanImport.ts`: personal weekly plan validation and safe import.
 - `src/main.tsx`: routes and working application screens.
 - `src/uiStore.ts`: transient planner view state. Personal data stays in IndexedDB.

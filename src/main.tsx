@@ -58,6 +58,7 @@ import {
   Droplets,
   AlertCircle,
   Search,
+  Dumbbell,
 } from "lucide-react";
 import { registerSW } from "virtual:pwa-register";
 import { motion, useReducedMotion } from "motion/react";
@@ -122,6 +123,8 @@ import {
 import { nextMeal, slotOrder } from "./schedule";
 import { recipeMatchesQuery, recipeAllowedInSlot } from "./recipeSearch";
 import { curatedRecipes, builtInTemplates } from "./catalog";
+import { WorkoutsPage, WorkoutToday } from "./workout-ui";
+import type { Exercise, WorkoutDay, WorkoutSession } from "./workouts";
 import { Button } from "./components/ui/button";
 import { Card } from "./components/ui/card";
 import { Modal } from "./components/ui/dialog";
@@ -134,6 +137,9 @@ const SpendingChart = lazy(() =>
 import "./style.css";
 
 type Data = {
+  exercises: Exercise[];
+  workoutDays: WorkoutDay[];
+  workoutSessions: WorkoutSession[];
   profile: Profile;
   recipes: Recipe[];
   meals: PlannedMeal[];
@@ -177,6 +183,9 @@ function useData() {
             ingredients,
             budgets,
             planWeeks,
+            exercises,
+            workoutDays,
+            workoutSessions,
           ] = await Promise.all([
             db.profiles.get("me"),
             db.preferences.get("me"),
@@ -194,6 +203,9 @@ function useData() {
             db.ingredients.toArray(),
             db.budgets.toArray(),
             db.planWeeks.toArray(),
+            db.exercises.toArray(),
+            db.workoutDays.toArray(),
+            db.workoutSessions.toArray(),
           ]);
           const savedProfile = profile || defaultProfile;
           return {
@@ -215,6 +227,9 @@ function useData() {
             ingredients,
             budgets,
             planWeeks,
+            exercises,
+            workoutDays,
+            workoutSessions,
           };
         }).subscribe({
           next: (x) => {
@@ -397,6 +412,7 @@ function Shell({
   const tabs = [
     ["/", "Home", Home],
     ["/plan", "Planner", CalendarDays],
+    ["/workouts", "Workouts", Dumbbell],
     ["/shop", "Shopping", ShoppingBasket],
     ["/progress", "Progress", TrendingUp],
     ["/more", "More", Menu],
@@ -475,6 +491,7 @@ function Shell({
               element={<Dashboard data={data} navigate={nav} />}
             />
             <Route path="/plan" element={<Planner data={data} />} />
+            <Route path="/workouts" element={<WorkoutsPage data={data} />} />
             <Route path="/shop" element={<Shop data={data} />} />
             <Route path="/progress" element={<Progress data={data} />} />
             <Route path="/more" element={<More />} />
@@ -1104,6 +1121,7 @@ function Dashboard({
           </Button>
         </div>
       </div>
+      <WorkoutToday data={data} navigate={navigate} />
       {!p.personalized && (
         <Card className="starter-card">
           <div>
@@ -5789,6 +5807,9 @@ const tables = [
   "budgets",
   "preferences",
   "planWeeks",
+  "exercises",
+  "workoutDays",
+  "workoutSessions",
 ] as const;
 type BackupData = Record<(typeof tables)[number], unknown[]>;
 function download(name: string, blob: Blob) {
@@ -5802,7 +5823,7 @@ function download(name: string, blob: Blob) {
 function Backup({ data }: { data: Data }) {
   const navigate = useNavigate();
   const [preview, setPreview] = useState<{
-    schemaVersion: 5;
+    schemaVersion: 6;
     exportedAt: string;
     data: BackupData;
   } | null>(null);
@@ -5813,7 +5834,7 @@ function Backup({ data }: { data: Data }) {
     const records: Partial<BackupData> = {};
     for (const t of tables) records[t] = await db.table(t).toArray();
     const backup = {
-      schemaVersion: 5,
+      schemaVersion: 6,
       exportedAt: new Date().toISOString(),
       data: records,
     };
@@ -5832,7 +5853,7 @@ function Backup({ data }: { data: Data }) {
       }
       setPreview(
         parseBackup(raw) as {
-          schemaVersion: 5;
+          schemaVersion: 6;
           exportedAt: string;
           data: BackupData;
         },

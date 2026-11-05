@@ -1,0 +1,126 @@
+{
+  "schema": "nourish.exerciseAnimationManifest",
+  "version": 1,
+  "description": "All 16 exercise IDs in the original starter fitness plan. Assets are illustration prototypes and require form review before instructional use.",
+  "mediaBase": "/assets/workouts/",
+  "exercises": {
+    "squat": {
+      "path": "/assets/workouts/squat.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "generated_3d_style",
+      "displayName": "Bodyweight squat"
+    },
+    "incline_pushup": {
+      "path": "/assets/workouts/incline_pushup.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "schematic_vector",
+      "displayName": "Incline push-up"
+    },
+    "pushup": {
+      "path": "/assets/workouts/pushup.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "generated_3d_style",
+      "displayName": "Floor push-up"
+    },
+    "reverse_lunge": {
+      "path": "/assets/workouts/reverse_lunge.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "generated_3d_style",
+      "displayName": "Supported reverse lunge"
+    },
+    "glute_bridge": {
+      "path": "/assets/workouts/glute_bridge.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "generated_3d_style",
+      "displayName": "Glute bridge"
+    },
+    "calf_raise": {
+      "path": "/assets/workouts/calf_raise.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "generated_3d_style",
+      "displayName": "Standing calf raise"
+    },
+    "plank": {
+      "path": "/assets/workouts/plank.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "generated_3d_style",
+      "displayName": "Forearm plank"
+    },
+    "bird_dog": {
+      "path": "/assets/workouts/bird_dog.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "generated_3d_style",
+      "displayName": "Bird-dog"
+    },
+    "dead_bug": {
+      "path": "/assets/workouts/dead_bug.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "generated_3d_style",
+      "displayName": "Dead bug"
+    },
+    "reverse_snow_angel": {
+      "path": "/assets/workouts/reverse_snow_angel.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "schematic_vector",
+      "displayName": "Prone reverse snow angel"
+    },
+    "side_plank_knees": {
+      "path": "/assets/workouts/side_plank_knees.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "schematic_vector",
+      "displayName": "Bent-knee side plank"
+    },
+    "wall_sit": {
+      "path": "/assets/workouts/wall_sit.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "generated_3d_style",
+      "displayName": "Wall sit"
+    },
+    "cat_cow": {
+      "path": "/assets/workouts/cat_cow.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "schematic_vector",
+      "displayName": "Cat-cow mobility"
+    },
+    "hip_mobility": {
+      "path": "/assets/workouts/hip_mobility.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "schematic_vector",
+      "displayName": "Hip mobility flow"
+    },
+    "shoulder_mobility": {
+      "path": "/assets/workouts/shoulder_mobility.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "schematic_vector",
+      "displayName": "Shoulder mobility flow"
+    },
+    "walk": {
+      "path": "/assets/workouts/walk.gif",
+      "format": "gif",
+      "status": "prototype_needs_form_review",
+      "visualType": "schematic_vector",
+      "displayName": "Comfortable walk"
+    }
+  },
+  "optionalExtra": {
+    "wall_pushup": {
+      "path": "/assets/workouts/wall_pushup_optional.gif",
+      "note": "No matching exercise ID in the current 16-item plan. Only link after adding a distinct wall-push-up exercise record, not to incline_pushup automatically."
+    }
+  }
+}

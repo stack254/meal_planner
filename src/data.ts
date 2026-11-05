@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
+import type { Exercise, WorkoutDay, WorkoutSession } from "./workouts";
 import { addDays, format, startOfWeek } from "date-fns";
 import { curatedRecipes, builtInTemplates } from "./catalog";
 export type Slot = "breakfast" | "lunch" | "dinner" | "snack";
@@ -180,7 +181,20 @@ export type PlanTemplate = {
     weeks: PlanTemplate["items"][];
   };
 };
-export const uid = () => crypto.randomUUID();
+export const uid = () => {
+  const source = globalThis.crypto;
+  if (typeof source?.randomUUID === "function") return source.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (typeof source?.getRandomValues === "function")
+    source.getRandomValues(bytes);
+  else
+    for (let i = 0; i < bytes.length; i++)
+      bytes[i] = Math.floor(Math.random() * 256);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
+  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
+};
 export const today = () => format(new Date(), "yyyy-MM-dd");
 export const weekOf = (date: string) =>
   format(
@@ -485,6 +499,9 @@ export const makeSeedWeek = (week: string): PlannedMeal[] => [
 ];
 
 export class NourishDB extends Dexie {
+  exercises!: EntityTable<Exercise, "id">;
+  workoutDays!: EntityTable<WorkoutDay, "id">;
+  workoutSessions!: EntityTable<WorkoutSession, "id">;
   ingredients!: EntityTable<IngredientInfo, "name">;
   budgets!: EntityTable<BudgetOverride, "id">;
   preferences!: EntityTable<AppearancePreference, "id">;
@@ -675,6 +692,27 @@ export class NourishDB extends Dexie {
             .table("planWeeks")
             .bulkPut(weeks.map((week) => ({ week, templateId: "existing" })));
       });
+    this.version(8).stores({
+      profiles: "id",
+      recipes: "id",
+      meals: "id,date,recipeId,status",
+      prices: "name",
+      pantry: "id,name",
+      purchases: "id,date,listWeek",
+      weights: "id,date",
+      habits: "id,date,key",
+      lists: "id,week",
+      reminders: "id",
+      templates: "id",
+      mealRecords: "id,date",
+      ingredients: "name",
+      budgets: "id,date,period",
+      preferences: "id",
+      planWeeks: "week",
+      exercises: "id",
+      workoutDays: "id,day",
+      workoutSessions: "id,date,status",
+    });
   }
 }
 export const db = new NourishDB();
@@ -719,6 +757,13 @@ export function initialize() {
       );
     }
     if (await db.profiles.count()) await ensureUpcomingPlan();
+    if (!(
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem("nourish-erased")
+    )) {
+      const { seedWorkoutPlan } = await import("./workouts");
+      await seedWorkoutPlan();
+    }
   })());
 }
 export async function ensureUpcomingPlan(
